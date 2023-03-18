@@ -20,6 +20,10 @@ type SQSAPI interface {
 		params *sqs.DeleteQueueInput,
 		optFns ...func(*sqs.Options)) (*sqs.DeleteQueueOutput, error)
 
+	GetQueueAttributes(ctx context.Context,
+		params *sqs.GetQueueAttributesInput,
+		optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error)
+
 	ReceiveMessage(ctx context.Context,
 		params *sqs.ReceiveMessageInput,
 		optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
@@ -34,13 +38,29 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 		queueName = "sns-listener-" + uuid.NewString()
 	}
 
+	queuePolicy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": {
+				"Service": "sns.amazonaws.com"
+			},
+			"Action": "sqs:SendMessage",
+			"Resource": "*",
+			"Condition": {
+				"ArnEquals": {
+					"aws:SourceArn": "%s"
+				}
+			}
+		}]
+	}`, topicArn)
+
 	result, err := client.CreateQueue(
 		ctx,
 		&sqs.CreateQueueInput{
 			QueueName: aws.String(queueName),
 			Attributes: map[string]string{
-				"DelaySeconds":           "60",
-				"MessageRetentionPeriod": "86400",
+				"Policy": queuePolicy,
 			},
 		},
 	)
@@ -50,6 +70,24 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 	}
 
 	return result.QueueUrl, nil
+}
+
+func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string, error) {
+	result, err := client.GetQueueAttributes(
+		ctx,
+		&sqs.GetQueueAttributesInput{
+			QueueUrl: queueUrl,
+			AttributeNames: []types.QueueAttributeName{
+				types.QueueAttributeNameQueueArn,
+			},
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return aws.String(result.Attributes[string(types.QueueAttributeNameQueueArn)]), nil
 }
 
 func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {

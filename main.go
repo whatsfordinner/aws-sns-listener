@@ -46,6 +46,21 @@ func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *stri
 	}
 
 	defer deleteQueue(ctx, sqsClient, queueUrl)
+
+	queueArn, err := getQueueArn(ctx, sqsClient, queueUrl)
+
+	if err != nil {
+		return err
+	}
+
+	subscriptionArn, err := subscribeToTopic(ctx, snsClient, topicArn, queueArn)
+
+	if err != nil {
+		return err
+	}
+
+	defer unsubscribeFromTopic(ctx, snsClient, subscriptionArn)
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
