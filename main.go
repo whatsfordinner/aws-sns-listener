@@ -39,7 +39,7 @@ func main() {
 }
 
 func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *string, queueName *string) error {
-	queueUrl, err := createQueue(ctx, sqsClient, *queueName)
+	queueUrl, err := createQueue(ctx, sqsClient, *queueName, *topicArn)
 
 	if err != nil {
 		return err

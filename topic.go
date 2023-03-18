@@ -16,7 +16,7 @@ type SNSAPI interface {
 		optFns ...func(*sns.Options)) (*sns.UnsubscribeOutput, error)
 }
 
-func subscribeToTopic(ctx context.Context, topicArn *string) (*string, error) {
+func subscribeToTopic(ctx context.Context, topicArn *string, queueUrl *string) (*string, error) {
 	return nil, nil
 }
 

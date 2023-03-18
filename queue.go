@@ -29,7 +29,7 @@ type SQSAPI interface {
 		optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
 }
 
-func createQueue(ctx context.Context, client SQSAPI, queueName string) (*string, error) {
+func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn string) (*string, error) {
 	if queueName == "" {
 		queueName = "sns-listener-" + uuid.NewString()
 	}
