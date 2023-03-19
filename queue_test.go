@@ -31,7 +31,13 @@ func (c SQSAPIImpl) CreateQueue(ctx context.Context,
 func (c SQSAPIImpl) DeleteQueue(ctx context.Context,
 	params *sqs.DeleteQueueInput,
 	optFns ...func(*sqs.Options)) (*sqs.DeleteQueueOutput, error) {
-	return nil, nil
+	queueUrl := *params.QueueUrl
+
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" {
+		return &sqs.DeleteQueueOutput{}, nil
+	}
+
+	return nil, errors.New("Can't delete that queue!")
 }
 
 func (c SQSAPIImpl) GetQueueAttributes(ctx context.Context,
@@ -119,4 +125,31 @@ func TestListenToQueue(t *testing.T) {
 }
 
 func TestDeleteQueue(t *testing.T) {
+	tests := map[string]struct {
+		shouldErr bool
+		queueUrl  *string
+	}{
+		"valid queue":   {false, aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue")},
+		"invalid queue": {true, aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue")},
+	}
+
+	client := &SQSAPIImpl{}
+	ctx := context.TODO()
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := deleteQueue(ctx, client, test.queueUrl)
+
+			if err != nil && !test.shouldErr {
+				t.Fatalf(
+					"Expected no error but got %s",
+					err.Error(),
+				)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatalf("Expected error but got no error")
+			}
+		})
+	}
 }
