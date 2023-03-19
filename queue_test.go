@@ -43,7 +43,17 @@ func (c SQSAPIImpl) DeleteQueue(ctx context.Context,
 func (c SQSAPIImpl) GetQueueAttributes(ctx context.Context,
 	params *sqs.GetQueueAttributesInput,
 	optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error) {
-	return nil, nil
+	queueUrl := *params.QueueUrl
+
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" {
+		return &sqs.GetQueueAttributesOutput{
+			Attributes: map[string]string{
+				"QueueArn": "arn:aws:sqs:us-east-1:123456789012:valid-queue",
+			},
+		}, nil
+	}
+
+	return nil, errors.New("Couldn't get attributes for that queue!")
 }
 
 func (c SQSAPIImpl) ReceiveMessage(ctx context.Context,
@@ -119,6 +129,52 @@ func TestCreateQueue(t *testing.T) {
 }
 
 func TestGetQueueArn(t *testing.T) {
+	tests := map[string]struct {
+		shouldErr   bool
+		queueUrl    *string
+		expectedArn string
+	}{
+		"valid queue": {
+			false,
+			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			"arn:aws:sqs:us-east-1:123456789012:valid-queue",
+		},
+		"invalid queue": {
+			true,
+			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue"),
+			"",
+		},
+	}
+
+	client := &SQSAPIImpl{}
+	ctx := context.TODO()
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := getQueueArn(ctx, client, test.queueUrl)
+
+			if err != nil && !test.shouldErr {
+				t.Fatalf(
+					"Expected no error but got %s",
+					err.Error(),
+				)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatalf("Expected error but got no error")
+			}
+
+			if err == nil && !test.shouldErr {
+				if *result != test.expectedArn {
+					t.Fatalf(
+						"Queue ARN %s did not match expected ARN %s",
+						*result,
+						test.expectedArn,
+					)
+				}
+			}
+		})
+	}
 }
 
 func TestListenToQueue(t *testing.T) {
