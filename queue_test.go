@@ -8,9 +8,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
-type SQSAPIImpl struct{}
+type SQSAPIImpl struct {
+	messages []types.Message
+}
 
 func (c SQSAPIImpl) CreateQueue(ctx context.Context,
 	params *sqs.CreateQueueInput,
@@ -59,13 +62,36 @@ func (c SQSAPIImpl) GetQueueAttributes(ctx context.Context,
 func (c SQSAPIImpl) ReceiveMessage(ctx context.Context,
 	params *sqs.ReceiveMessageInput,
 	optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
-	return nil, nil
+	queueUrl := *params.QueueUrl
+
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" {
+		if len(c.messages) > 0 {
+			return &sqs.ReceiveMessageOutput{
+				Messages: []types.Message{c.messages[0]},
+			}, nil
+		}
+
+		return &sqs.ReceiveMessageOutput{
+			Messages: []types.Message{},
+		}, nil
+	}
+
+	return nil, errors.New("Couldn't receive messages from that queue!")
 }
 
 func (c SQSAPIImpl) DeleteMessage(ctx context.Context,
 	params *sqs.DeleteMessageInput,
 	optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error) {
-	return nil, nil
+	queueUrl := *params.QueueUrl
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" {
+		for _, v := range c.messages {
+			if *v.ReceiptHandle == *params.ReceiptHandle && *params.ReceiptHandle == *v.Body+"-handle" {
+				return &sqs.DeleteMessageOutput{}, nil
+			}
+		}
+	}
+
+	return nil, errors.New("Couldn't delete messages from that queue!")
 }
 
 func TestCreateQueue(t *testing.T) {
@@ -178,6 +204,89 @@ func TestGetQueueArn(t *testing.T) {
 }
 
 func TestListenToQueue(t *testing.T) {
+	tests := map[string]struct {
+		shouldErr bool
+		queueUrl  *string
+		messages  []types.Message
+	}{
+		"valid queue with valid receipts": {
+			false,
+			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			[]types.Message{
+				{
+					Body:          aws.String("foo"),
+					ReceiptHandle: aws.String("foo-handle"),
+				},
+			},
+		},
+		"empty queue": {
+			false,
+			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			[]types.Message{},
+		},
+		"invalid queue": {
+			true,
+			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue"),
+			[]types.Message{
+				{
+					Body:          aws.String("foo"),
+					ReceiptHandle: aws.String("foo-handle"),
+				},
+			},
+		},
+		"valid queue with invalid receipts": {
+			true,
+			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			[]types.Message{
+				{
+					Body:          aws.String("foo"),
+					ReceiptHandle: aws.String("bar-handle"),
+				},
+			},
+		},
+	}
+
+	client := SQSAPIImpl{}
+	ctx := context.Background()
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(ctx)
+			client.messages = test.messages
+			receivedMessages := []types.Message{}
+			err := make(chan error, 1)
+
+			go func() {
+				listenToQueue(
+					ctx,
+					client,
+					test.queueUrl,
+					func(m types.Message) {
+						receivedMessages = append(receivedMessages, m)
+					},
+					func(e error) {
+						err <- e
+					},
+					10,
+				)
+			}()
+
+			for len(err) == 0 && len(receivedMessages) < len(test.messages) {
+			}
+
+			cancel()
+
+			if len(err) > 0 && !test.shouldErr {
+				t.Fatalf("Expected no error but got %s",
+					(<-err).Error(),
+				)
+			}
+
+			if len(err) == 0 && test.shouldErr {
+				t.Fatal("Expected error but got no error")
+			}
+		})
+	}
 }
 
 func TestDeleteQueue(t *testing.T) {

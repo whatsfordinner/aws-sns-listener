@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
 func main() {
@@ -65,11 +66,14 @@ func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *stri
 	defer cancel()
 
 	go func() {
-		err = listenToQueue(ctx, sqsClient, queueUrl)
-
-		if err != nil {
-			fmt.Println(err.Error())
-		}
+		listenToQueue(
+			ctx,
+			sqsClient,
+			queueUrl,
+			func(m types.Message) { fmt.Printf("Message Body: %s\n", *m.Body) },
+			func(err error) { fmt.Println(err.Error()) },
+			1000,
+		)
 	}()
 
 	c := make(chan os.Signal, 1)

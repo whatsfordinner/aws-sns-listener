@@ -90,10 +90,10 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string,
 	return aws.String(result.Attributes[string(types.QueueAttributeNameQueueArn)]), nil
 }
 
-func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
+func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler func(types.Message), errorHandler func(error), delayMs int) {
 	for {
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(time.Duration(delayMs) * time.Millisecond):
 			receiveResult, err := client.ReceiveMessage(
 				ctx,
 				&sqs.ReceiveMessageInput{
@@ -107,16 +107,11 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
 			)
 
 			if err != nil {
-				return err
+				errorHandler(err)
+				continue
 			}
 
 			for _, message := range receiveResult.Messages {
-				fmt.Printf(
-					"MessageId: %s\nMessage Body: %s\n",
-					*message.MessageId,
-					*message.Body,
-				)
-
 				_, err := client.DeleteMessage(
 					ctx,
 					&sqs.DeleteMessageInput{
@@ -126,12 +121,14 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
 				)
 
 				if err != nil {
-					return err
+					errorHandler(err)
 				}
+
+				handler(message)
 			}
 
 		case <-ctx.Done():
-			return nil
+			return
 		}
 	}
 }
