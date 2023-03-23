@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 
@@ -30,7 +31,10 @@ func main() {
 	cfg, err := config.LoadDefaultConfig(ctx)
 
 	if err != nil {
-		panic("configuration error, " + err.Error())
+		log.Fatalf(
+			"Error loading AWS configuration: %s",
+			err.Error(),
+		)
 	}
 
 	if *parameterPath != "" {
@@ -38,7 +42,10 @@ func main() {
 		parameterValue, err := getParameter(ctx, ssmClient, *parameterPath)
 
 		if err != nil {
-			panic("error fetching parameter, " + err.Error())
+			log.Fatalf(
+				"Error fetching Topic ARN from Parameter Store: %s",
+				err.Error(),
+			)
 		}
 
 		*topicArn = *parameterValue
@@ -53,7 +60,10 @@ func main() {
 	)
 
 	if err != nil {
-		panic("runtime error, " + err.Error())
+		log.Fatalf(
+			"Error at runtime: %s",
+			err.Error(),
+		)
 	}
 }
 
