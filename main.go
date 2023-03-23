@@ -11,16 +11,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
 func main() {
 	ctx := context.Background()
-	topicArn := flag.String("t", "", "The ARN of the topic to listen to")
+	topicArn := flag.String("t", "", "The ARN of the topic to listen to, cannot be set along with parameter path")
+	parameterPath := flag.String("p", "", "The path of the SSM parameter to get the topic ARN from, cannot be set along with topic ARN")
 	queueName := flag.String("q", "", "Optional name for the queue to create")
 
 	flag.Parse()
 
-	if *topicArn == "" {
+	if *topicArn == "" && *parameterPath == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -29,6 +31,17 @@ func main() {
 
 	if err != nil {
 		panic("configuration error, " + err.Error())
+	}
+
+	if *parameterPath != "" {
+		ssmClient := ssm.NewFromConfig(cfg)
+		parameterValue, err := getParameter(ctx, ssmClient, *parameterPath)
+
+		if err != nil {
+			panic("error fetching parameter, " + err.Error())
+		}
+
+		*topicArn = *parameterValue
 	}
 
 	err = run(
