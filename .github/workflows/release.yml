@@ -31,5 +31,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body: ${{ steps.changelog.outputs.clean_changelog }}
-          release_name: ${{ steps.changelog.outputs.tag }}
+          name: ${{ steps.changelog.outputs.tag }}
           tag_name: ${{ steps.changelog.outputs.tag }}
