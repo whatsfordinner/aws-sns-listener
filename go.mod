@@ -1,4 +1,4 @@
-module aws-sns-listener
+module github.com/whatsfordinner/aws-sns-listener
 
 go 1.20
 
