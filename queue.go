@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -55,6 +56,8 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 		}]
 	}`, topicArn)
 
+	log.Printf("Creating new queue...\n\tName: %s\n\tAllowing messages from topic: %s\n", queueName, topicArn)
+
 	result, err := client.CreateQueue(
 		ctx,
 		&sqs.CreateQueueInput{
@@ -68,6 +71,8 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf("Queue created with URL: %s", *result.QueueUrl)
 
 	return result.QueueUrl, nil
 }
@@ -91,6 +96,7 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string,
 }
 
 func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler func(types.Message), errorHandler func(error), delayMs int) {
+	log.Printf("Starting to listen to queue. Fetching messages every %f seconds...", float32(delayMs)/1000)
 	for {
 		select {
 		case <-time.After(time.Duration(delayMs) * time.Millisecond):
@@ -128,12 +134,14 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler
 			}
 
 		case <-ctx.Done():
+			log.Printf("Context cancelled, no longer listening to queue")
 			return
 		}
 	}
 }
 
 func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
+	log.Printf("Deleting queue with URL %s...", *queueUrl)
 	_, err := client.DeleteQueue(
 		ctx,
 		&sqs.DeleteQueueInput{
@@ -144,6 +152,8 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Deleted queue")
 
 	return nil
 }

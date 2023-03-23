@@ -253,7 +253,7 @@ func TestListenToQueue(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			client.messages = test.messages
-			receivedMessages := []types.Message{}
+			receivedMessages := make(chan types.Message, 1)
 			err := make(chan error, 1)
 
 			go func() {
@@ -262,7 +262,7 @@ func TestListenToQueue(t *testing.T) {
 					client,
 					test.queueUrl,
 					func(m types.Message) {
-						receivedMessages = append(receivedMessages, m)
+						receivedMessages <- m
 					},
 					func(e error) {
 						err <- e

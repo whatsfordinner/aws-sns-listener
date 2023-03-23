@@ -20,6 +20,11 @@ func main() {
 
 	flag.Parse()
 
+	if *topicArn == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	cfg, err := config.LoadDefaultConfig(ctx)
 
 	if err != nil {
