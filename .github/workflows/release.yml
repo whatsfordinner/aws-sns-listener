@@ -15,8 +15,34 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test -v
-  release:
+
+  build:
     needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - darwin
+          - linux
+          - windows
+        arch:
+          - amd64
+          - arm64
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - run: env GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o .build/aws-sns-listener_${{ matrix.os }}_${{ matrix.arch }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: .build/
+
+  release:
+    needs: 
+      - test
+      - build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -27,9 +53,15 @@ jobs:
           github-token: ${{ secrets.github_token }}
           version-file: .github/version.json
           output-file: "false"
+      - uses: actions/download-artifact@v3
+        with:
+          name: binaries
+          path: .build/
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           body: ${{ steps.changelog.outputs.clean_changelog }}
           name: ${{ steps.changelog.outputs.tag }}
           tag_name: ${{ steps.changelog.outputs.tag }}
+          files: |
+            .build/*
