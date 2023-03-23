@@ -15,7 +15,7 @@ Usage of aws-sns-listener:
 | Flag | Mandatory | Use |
 |------|-----------|-----|
 | `-t` | YES | The ARN for the SNS topic that you want to listen to |
-| `-q` | NO | Name for the queue you want to create. If not provided it will be a v2 UUID prefixed with `sns-listener-` E.g. `sns-listener-67ea4ab1-fafa-4a1c-ad76-2db314ec17e3` |
+| `-q` | NO | Name for the queue you want to create. If not provided it will be a v4 UUID prefixed with `sns-listener-` E.g. `sns-listener-67ea4ab1-fafa-4a1c-ad76-2db314ec17e3` |
 
 
 Example output:
