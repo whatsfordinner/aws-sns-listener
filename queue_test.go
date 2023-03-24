@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -92,6 +93,23 @@ func (c SQSAPIImpl) DeleteMessage(ctx context.Context,
 	}
 
 	return nil, errors.New("Couldn't delete messages from that queue!")
+}
+
+type ListenerImpl struct {
+	messages chan MessageContent
+	errors   chan error
+}
+
+func (c ListenerImpl) OnMessage(ctx context.Context, m MessageContent) {
+	c.messages <- m
+}
+
+func (c ListenerImpl) OnError(ctx context.Context, err error) {
+	c.errors <- err
+}
+
+func (c ListenerImpl) GetPollingInterval(ctx context.Context) time.Duration {
+	return 10 * time.Millisecond
 }
 
 func TestCreateQueue(t *testing.T) {
@@ -265,36 +283,31 @@ func TestListenToQueue(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(ctx)
 			client.messages = test.messages
-			receivedMessages := make(chan types.Message, 1)
-			err := make(chan error, 1)
+			consumer := ListenerImpl{}
+			consumer.messages = make(chan MessageContent, 1)
+			consumer.errors = make(chan error, 1)
 
 			go func() {
 				listenToQueue(
 					ctx,
 					client,
 					test.queueUrl,
-					func(m types.Message) {
-						receivedMessages <- m
-					},
-					func(e error) {
-						err <- e
-					},
-					10,
+					consumer,
 				)
 			}()
 
-			for len(err) == 0 && len(receivedMessages) < len(test.messages) {
+			for len(consumer.errors) == 0 && len(consumer.messages) < len(test.messages) {
 			}
 
 			cancel()
 
-			if len(err) > 0 && !test.shouldErr {
+			if len(consumer.errors) > 0 && !test.shouldErr {
 				t.Fatalf("Expected no error but got %s",
-					(<-err).Error(),
+					(<-consumer.errors).Error(),
 				)
 			}
 
-			if len(err) == 0 && test.shouldErr {
+			if len(consumer.errors) == 0 && test.shouldErr {
 				t.Fatal("Expected error but got no error")
 			}
 		})

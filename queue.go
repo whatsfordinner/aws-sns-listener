@@ -34,6 +34,19 @@ type SQSAPI interface {
 		optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
 }
 
+type Consumer interface {
+	OnMessage(ctx context.Context, m MessageContent)
+
+	OnError(ctx context.Context, err error)
+
+	GetPollingInterval(ctx context.Context) time.Duration
+}
+
+type MessageContent struct {
+	Body *string
+	Id   *string
+}
+
 func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn string) (*string, error) {
 	isFIFO, err := isTopicFIFO(ctx, &topicArn)
 
@@ -112,11 +125,11 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string,
 	return aws.String(result.Attributes[string(types.QueueAttributeNameQueueArn)]), nil
 }
 
-func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler func(types.Message), errorHandler func(error), delayMs int) {
-	log.Printf("Starting to listen to queue. Fetching messages every %f seconds...", float32(delayMs)/1000)
+func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consumer Consumer) {
+	log.Printf("Starting to listen to queue. Fetching messages every %s...", consumer.GetPollingInterval(ctx))
 	for {
 		select {
-		case <-time.After(time.Duration(delayMs) * time.Millisecond):
+		case <-time.After(consumer.GetPollingInterval(ctx)):
 			receiveResult, err := client.ReceiveMessage(
 				ctx,
 				&sqs.ReceiveMessageInput{
@@ -130,7 +143,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler
 			)
 
 			if err != nil {
-				errorHandler(err)
+				consumer.OnError(ctx, err)
 				continue
 			}
 
@@ -144,10 +157,13 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler
 				)
 
 				if err != nil {
-					errorHandler(err)
+					consumer.OnError(ctx, err)
 				}
 
-				handler(message)
+				consumer.OnMessage(ctx, MessageContent{
+					Body: message.Body,
+					Id:   message.MessageId,
+				})
 			}
 
 		case <-ctx.Done():

@@ -7,13 +7,27 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
+
+type consumer struct{}
+
+func (c consumer) OnMessage(ctx context.Context, m MessageContent) {
+	fmt.Printf("Message body: %s\n", *m.Body)
+}
+
+func (c consumer) OnError(ctx context.Context, err error) {
+	fmt.Println(err.Error())
+}
+
+func (c consumer) GetPollingInterval(ctx context.Context) time.Duration {
+	return time.Second
+}
 
 func main() {
 	ctx := context.Background()
@@ -98,9 +112,7 @@ func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *stri
 			listenCtx,
 			sqsClient,
 			queueUrl,
-			func(m types.Message) { fmt.Printf("Message Body: %s\n", *m.Body) },
-			func(err error) { fmt.Println(err.Error()) },
-			1000,
+			consumer{},
 		)
 	}()
 
