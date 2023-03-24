@@ -40,7 +40,7 @@ func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queu
 	return result.SubscriptionArn, nil
 }
 
-func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *string) error {
+func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *string) {
 	log.Printf("Removing subscription with ARN %s...", *subscriptionArn)
 	_, err := client.Unsubscribe(
 		ctx,
@@ -50,12 +50,10 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 	)
 
 	if err != nil {
-		return err
+		log.Printf("Unable to unsubscribe from topic: %s", err.Error())
 	}
 
 	log.Printf("Subscription removed")
-
-	return nil
 }
 
 func isTopicFIFO(ctx context.Context, topicArn *string) (bool, error) {

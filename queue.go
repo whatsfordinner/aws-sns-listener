@@ -157,7 +157,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, handler
 	}
 }
 
-func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
+func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) {
 	log.Printf("Deleting queue with URL %s...", *queueUrl)
 	_, err := client.DeleteQueue(
 		ctx,
@@ -167,10 +167,8 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) error {
 	)
 
 	if err != nil {
-		return err
+		log.Printf("Unable to delete queue: %s", err.Error())
 	}
 
 	log.Printf("Deleted queue")
-
-	return nil
 }

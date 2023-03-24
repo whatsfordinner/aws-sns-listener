@@ -74,6 +74,8 @@ func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *stri
 		return err
 	}
 
+	defer deleteQueue(ctx, sqsClient, queueUrl)
+
 	queueArn, err := getQueueArn(ctx, sqsClient, queueUrl)
 
 	if err != nil {
@@ -86,7 +88,10 @@ func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *stri
 		return err
 	}
 
+	defer unsubscribeFromTopic(ctx, snsClient, subscriptionArn)
+
 	listenCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	go func() {
 		listenToQueue(
@@ -102,20 +107,6 @@ func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *stri
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	<-c
-
-	cancel()
-
-	err = unsubscribeFromTopic(ctx, snsClient, subscriptionArn)
-
-	if err != nil {
-		return err
-	}
-
-	err = deleteQueue(ctx, sqsClient, queueUrl)
-
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
