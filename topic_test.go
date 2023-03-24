@@ -102,3 +102,44 @@ func TestUnsubscribe(t *testing.T) {
 		})
 	}
 }
+
+func TestIsTopicFIFO(t *testing.T) {
+	tests := map[string]struct {
+		shouldErr bool
+		topicArn  *string
+		expected  bool
+	}{
+		"FIFO topic":       {false, aws.String("arn:aws:sns:us-east-1:123456789012:my-topic.fifo"), true},
+		"not a FIFO topic": {false, aws.String("arn:aws:sns:us-east-1:123456789012:my-topic"), false},
+	}
+
+	ctx := context.TODO()
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			result, err := isTopicFIFO(ctx, test.topicArn)
+
+			if err != nil && !test.shouldErr {
+				t.Fatalf(
+					"Expected no error but got %s",
+					err.Error(),
+				)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("Expected error but got no error")
+			}
+
+			if err == nil && !test.shouldErr {
+				if result != test.expected {
+					t.Fatalf(
+						"Expected %t for topic with ARN %s but got %t",
+						test.expected,
+						*test.topicArn,
+						result,
+					)
+				}
+			}
+		})
+	}
+}

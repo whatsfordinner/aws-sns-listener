@@ -35,8 +35,18 @@ type SQSAPI interface {
 }
 
 func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn string) (*string, error) {
+	isFIFO, err := isTopicFIFO(ctx, &topicArn)
+
+	if err != nil {
+		return nil, err
+	}
+
 	if queueName == "" {
 		queueName = "sns-listener-" + uuid.NewString()
+	}
+
+	if isFIFO {
+		queueName += ".fifo"
 	}
 
 	queuePolicy := fmt.Sprintf(`{
@@ -56,15 +66,22 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 		}]
 	}`, topicArn)
 
-	log.Printf("Creating new queue...\n\tName: %s\n\tAllowing messages from topic: %s\n", queueName, topicArn)
+	queueAttributes := map[string]string{
+		"Policy": queuePolicy,
+	}
+
+	if isFIFO {
+		queueAttributes["FifoQueue"] = "true"
+		queueAttributes["ContentBasedDeduplication"] = "true"
+	}
+
+	log.Printf("Creating new queue...\n\tName: %s\n\tAllowing messages from topic: %s\n\tFIFO: %t\n", queueName, topicArn, isFIFO)
 
 	result, err := client.CreateQueue(
 		ctx,
 		&sqs.CreateQueueInput{
-			QueueName: aws.String(queueName),
-			Attributes: map[string]string{
-				"Policy": queuePolicy,
-			},
+			QueueName:  aws.String(queueName),
+			Attributes: queueAttributes,
 		},
 	)
 

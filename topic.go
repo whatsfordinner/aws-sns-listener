@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
@@ -55,4 +56,8 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 	log.Printf("Subscription removed")
 
 	return nil
+}
+
+func isTopicFIFO(ctx context.Context, topicArn *string) (bool, error) {
+	return regexp.MatchString(`\.fifo$`, *topicArn)
 }

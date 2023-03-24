@@ -20,7 +20,7 @@ func (c SQSAPIImpl) CreateQueue(ctx context.Context,
 	optFns ...func(*sqs.Options)) (*sqs.CreateQueueOutput, error) {
 	queueName := *params.QueueName
 
-	valid, _ := regexp.MatchString("[A-Za-z0-9_\\-]{1,80}", queueName)
+	valid, _ := regexp.MatchString(`^([A-Za-z0-9_\-]{1,80}|[A-Za-z0-9_\-]{1,75}\.fifo)$`, queueName)
 
 	if !valid {
 		return nil, errors.New("Invalid queue name")
@@ -107,11 +107,23 @@ func TestCreateQueue(t *testing.T) {
 			"arn:aws:sns:us-east-1:123456789012:example-topic",
 			"https://sqs.us-east-1.amazonaws.com/123456789012/sns-listener-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",
 		},
+		"generated FIFO queue name": {
+			false,
+			"",
+			"arn:aws:sns:us-east-1:123456789012:example-topic.fifo",
+			"https://sqs.us-east-1.amazonaws.com/123456789012/sns-listener-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.fifo",
+		},
 		"overridden queue name": {
 			false,
 			"test-queue-name",
 			"arn:aws:sns:us-east-1:123456789012:example-topic",
 			"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue-name",
+		},
+		"overridden FIFO queue name": {
+			false,
+			"test-queue-name",
+			"arn:aws:sns:us-east-1:123456789012:example-topic.fifo",
+			"https://sqs.us-east-1.amazonaws.com/123456789012/test-queue-name.fifo",
 		},
 		"invalid queue name": {
 			true,
@@ -140,7 +152,7 @@ func TestCreateQueue(t *testing.T) {
 			}
 
 			if err == nil && !test.shouldErr {
-				match, _ := regexp.Match(test.queueUrlRegexp, []byte(*queueUrl))
+				match, _ := regexp.MatchString(test.queueUrlRegexp, *queueUrl)
 
 				if !match {
 					t.Fatalf(
