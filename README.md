@@ -6,16 +6,22 @@ This util will let you listen to a Simple Notification Service (SNS) topic by cr
 
 ```
 Usage of aws-sns-listener:
+  -i int
+        Optional duration for delay when polling the SQS queue
+  -p string
+        The path of the SSM parameter to get the topic ARN from, cannot be set along with topic ARN
   -q string
         Optional name for the queue to create
   -t string
-        The ARN of the topic to listen to
+        The ARN of the topic to listen to, cannot be set along with parameter path
 ```
 
 | Flag | Mandatory | Use |
 |------|-----------|-----|
 | `-t` | YES | The ARN for the SNS topic that you want to listen to |
 | `-q` | NO | Name for the queue you want to create. If not provided it will be a v4 UUID prefixed with `sns-listener-` E.g. `sns-listener-67ea4ab1-fafa-4a1c-ad76-2db314ec17e3` |
+| `-p` | NO | The path to the SSM parameter you want to get the ARN for the SNS topic from. Overwrites `-t` |
+| `-i` | NO | The interval for polling the SQS queue in milliseconds |
 
 
 Example output:
