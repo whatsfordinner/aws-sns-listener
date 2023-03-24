@@ -1,4 +1,4 @@
-package main
+package listener
 
 import (
 	"context"
@@ -51,9 +51,10 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 
 	if err != nil {
 		log.Printf("Unable to unsubscribe from topic: %s", err.Error())
+	} else {
+		log.Printf("Subscription removed")
 	}
 
-	log.Printf("Subscription removed")
 }
 
 func isTopicFIFO(ctx context.Context, topicArn *string) (bool, error) {

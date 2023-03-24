@@ -24,3 +24,7 @@ require (
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )
+
+replace (
+	github.com/whatsfordinner/aws-sns-listener/pkg/listener => ./pkg/listener
+)

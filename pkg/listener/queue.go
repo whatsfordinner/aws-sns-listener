@@ -1,4 +1,4 @@
-package main
+package listener
 
 import (
 	"context"
@@ -32,19 +32,6 @@ type SQSAPI interface {
 	DeleteMessage(ctx context.Context,
 		params *sqs.DeleteMessageInput,
 		optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
-}
-
-type Consumer interface {
-	OnMessage(ctx context.Context, m MessageContent)
-
-	OnError(ctx context.Context, err error)
-
-	GetPollingInterval(ctx context.Context) time.Duration
-}
-
-type MessageContent struct {
-	Body *string
-	Id   *string
 }
 
 func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn string) (*string, error) {
@@ -125,11 +112,11 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string,
 	return aws.String(result.Attributes[string(types.QueueAttributeNameQueueArn)]), nil
 }
 
-func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consumer Consumer) {
-	log.Printf("Starting to listen to queue. Fetching messages every %s...", consumer.GetPollingInterval(ctx))
+func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consumer Consumer, pollingInterval time.Duration) {
+	log.Printf("Starting to listen to queue. Fetching messages every %s...", pollingInterval)
 	for {
 		select {
-		case <-time.After(consumer.GetPollingInterval(ctx)):
+		case <-time.After(pollingInterval):
 			receiveResult, err := client.ReceiveMessage(
 				ctx,
 				&sqs.ReceiveMessageInput{
@@ -184,7 +171,8 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) {
 
 	if err != nil {
 		log.Printf("Unable to delete queue: %s", err.Error())
+	} else {
+		log.Printf("Deleted queue")
 	}
 
-	log.Printf("Deleted queue")
 }

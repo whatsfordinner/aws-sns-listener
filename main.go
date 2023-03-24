@@ -13,11 +13,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/whatsfordinner/aws-sns-listener/pkg/listener"
 )
 
 type consumer struct{}
 
-func (c consumer) OnMessage(ctx context.Context, m MessageContent) {
+func (c consumer) OnMessage(ctx context.Context, m listener.MessageContent) {
 	fmt.Printf("Message body: %s\n", *m.Body)
 }
 
@@ -25,15 +26,13 @@ func (c consumer) OnError(ctx context.Context, err error) {
 	fmt.Println(err.Error())
 }
 
-func (c consumer) GetPollingInterval(ctx context.Context) time.Duration {
-	return time.Second
-}
-
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+
 	topicArn := flag.String("t", "", "The ARN of the topic to listen to, cannot be set along with parameter path")
 	parameterPath := flag.String("p", "", "The path of the SSM parameter to get the topic ARN from, cannot be set along with topic ARN")
 	queueName := flag.String("q", "", "Optional name for the queue to create")
+	pollingInterval := flag.Int("i", 0, "Optional duration for delay when polling the SQS queue")
 
 	flag.Parse()
 
@@ -51,74 +50,35 @@ func main() {
 		)
 	}
 
-	if *parameterPath != "" {
-		ssmClient := ssm.NewFromConfig(cfg)
-		parameterValue, err := getParameter(ctx, ssmClient, *parameterPath)
-
-		if err != nil {
-			log.Fatalf(
-				"Error fetching Topic ARN from Parameter Store: %s",
-				err.Error(),
-			)
-		}
-
-		*topicArn = *parameterValue
+	listenerCfg := listener.ListenerConfiguration{
+		ParameterPath:   *parameterPath,
+		PollingInterval: time.Duration(*pollingInterval) * time.Millisecond,
+		QueueName:       *queueName,
+		TopicArn:        *topicArn,
 	}
 
-	err = run(
-		ctx,
-		sns.NewFromConfig(cfg),
-		sqs.NewFromConfig(cfg),
-		topicArn,
-		queueName,
-	)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	result := make(chan error, 1)
 
-	if err != nil {
+	go func() {
+		result <- listener.ListenToTopic(
+			ctx,
+			sqs.NewFromConfig(cfg),
+			sns.NewFromConfig(cfg),
+			ssm.NewFromConfig(cfg),
+			consumer{},
+			listenerCfg,
+		)
+	}()
+
+	<-c
+	cancel()
+
+	if (<-result) != nil {
 		log.Fatalf(
 			"Error at runtime: %s",
 			err.Error(),
 		)
 	}
-}
-
-func run(ctx context.Context, snsClient SNSAPI, sqsClient SQSAPI, topicArn *string, queueName *string) error {
-	queueUrl, err := createQueue(ctx, sqsClient, *queueName, *topicArn)
-
-	if err != nil {
-		return err
-	}
-
-	defer deleteQueue(ctx, sqsClient, queueUrl)
-
-	queueArn, err := getQueueArn(ctx, sqsClient, queueUrl)
-
-	if err != nil {
-		return err
-	}
-
-	subscriptionArn, err := subscribeToTopic(ctx, snsClient, topicArn, queueArn)
-
-	if err != nil {
-		return err
-	}
-
-	defer unsubscribeFromTopic(ctx, snsClient, subscriptionArn)
-
-	listenCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		listenToQueue(
-			listenCtx,
-			sqsClient,
-			queueUrl,
-			consumer{},
-		)
-	}()
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-
-	return nil
 }

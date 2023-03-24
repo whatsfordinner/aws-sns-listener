@@ -1,4 +1,4 @@
-package main
+package listener
 
 import (
 	"context"
@@ -293,6 +293,7 @@ func TestListenToQueue(t *testing.T) {
 					client,
 					test.queueUrl,
 					consumer,
+					10*time.Millisecond,
 				)
 			}()
 
