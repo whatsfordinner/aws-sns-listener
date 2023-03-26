@@ -245,6 +245,7 @@ func TestListenToQueue(t *testing.T) {
 			[]types.Message{
 				{
 					Body:          aws.String("foo"),
+					MessageId:     aws.String("foo"),
 					ReceiptHandle: aws.String("foo-handle"),
 				},
 			},
@@ -260,6 +261,7 @@ func TestListenToQueue(t *testing.T) {
 			[]types.Message{
 				{
 					Body:          aws.String("foo"),
+					MessageId:     aws.String("foo"),
 					ReceiptHandle: aws.String("foo-handle"),
 				},
 			},
@@ -270,6 +272,7 @@ func TestListenToQueue(t *testing.T) {
 			[]types.Message{
 				{
 					Body:          aws.String("foo"),
+					MessageId:     aws.String("foo"),
 					ReceiptHandle: aws.String("bar-handle"),
 				},
 			},

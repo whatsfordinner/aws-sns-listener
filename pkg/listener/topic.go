@@ -2,11 +2,13 @@ package listener
 
 import (
 	"context"
-	"log"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type SNSAPI interface {
@@ -20,7 +22,14 @@ type SNSAPI interface {
 }
 
 func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queueArn *string) (*string, error) {
-	log.Printf("Creating a new SNS subscription...\n\tSNS topic ARN: %s\n\tSQS queue ARN: %s\n", *topicArn, *queueArn)
+	ctx, span := otel.Tracer(name).Start(ctx, "subscribeToTopic")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String(traceNamespace+".topicArn", *topicArn),
+		attribute.String(traceNamespace+".queueArn", *queueArn),
+	)
+
 	result, err := client.Subscribe(
 		ctx,
 		&sns.SubscribeInput{
@@ -32,16 +41,23 @@ func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queu
 	)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
-	log.Printf("Subscription created with ARN %s", *result.SubscriptionArn)
+	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", *result.SubscriptionArn))
+	span.SetStatus(codes.Ok, "")
 
 	return result.SubscriptionArn, nil
 }
 
 func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *string) {
-	log.Printf("Removing subscription with ARN %s...", *subscriptionArn)
+	ctx, span := otel.Tracer(name).Start(ctx, "unsubscribeFromTopic")
+	defer span.End()
+
+	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", *subscriptionArn))
+
 	_, err := client.Unsubscribe(
 		ctx,
 		&sns.UnsubscribeInput{
@@ -50,13 +66,17 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 	)
 
 	if err != nil {
-		log.Printf("Unable to unsubscribe from topic: %s", err.Error())
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 	} else {
-		log.Printf("Subscription removed")
+		span.SetStatus(codes.Ok, "")
 	}
 
 }
 
 func isTopicFIFO(ctx context.Context, topicArn *string) (bool, error) {
+	_, span := otel.Tracer(name).Start(ctx, "isTopicFIFO")
+	defer span.End()
+
 	return regexp.MatchString(`\.fifo$`, *topicArn)
 }

@@ -2,10 +2,12 @@ package listener
 
 import (
 	"context"
-	"log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type SSMAPI interface {
@@ -15,7 +17,11 @@ type SSMAPI interface {
 }
 
 func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*string, error) {
-	log.Printf("Fetching topic ARN from SSM parameter %s...", parameterPath)
+	ctx, span := otel.Tracer(name).Start(ctx, "getParameter")
+	defer span.End()
+
+	span.SetAttributes(attribute.String(traceNamespace+".ssmParameter", parameterPath))
+
 	result, err := client.GetParameter(
 		ctx,
 		&ssm.GetParameterInput{
@@ -25,10 +31,13 @@ func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*st
 	)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
-	log.Printf("Successfully fetched parameter value %s", *result.Parameter.Value)
+	span.SetAttributes(attribute.String(traceNamespace+".ssmParameterValue", *result.Parameter.Value))
+	span.SetStatus(codes.Ok, "")
 
 	return result.Parameter.Value, nil
 }

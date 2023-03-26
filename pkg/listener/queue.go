@@ -3,13 +3,15 @@ package listener
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type SQSAPI interface {
@@ -35,6 +37,9 @@ type SQSAPI interface {
 }
 
 func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn string) (*string, error) {
+	ctx, span := otel.Tracer(name).Start(ctx, "createQueue")
+	defer span.End()
+
 	isFIFO, err := isTopicFIFO(ctx, &topicArn)
 
 	if err != nil {
@@ -43,10 +48,6 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 
 	if queueName == "" {
 		queueName = "sns-listener-" + uuid.NewString()
-	}
-
-	if isFIFO {
-		queueName += ".fifo"
 	}
 
 	queuePolicy := fmt.Sprintf(`{
@@ -71,11 +72,16 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 	}
 
 	if isFIFO {
+		queueName += ".fifo"
 		queueAttributes["FifoQueue"] = "true"
 		queueAttributes["ContentBasedDeduplication"] = "true"
 	}
 
-	log.Printf("Creating new queue...\n\tName: %s\n\tAllowing messages from topic: %s\n\tFIFO: %t\n", queueName, topicArn, isFIFO)
+	span.SetAttributes(
+		attribute.String(traceNamespace+".queueName", queueName),
+		attribute.String(traceNamespace+".topicArn", topicArn),
+		attribute.Bool(traceNamespace+".isFIFO", isFIFO),
+	)
 
 	result, err := client.CreateQueue(
 		ctx,
@@ -86,15 +92,23 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 	)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
-	log.Printf("Queue created with URL: %s", *result.QueueUrl)
+	span.SetAttributes(attribute.String(traceNamespace+".queueUrl", *result.QueueUrl))
 
+	span.SetStatus(codes.Ok, "")
 	return result.QueueUrl, nil
 }
 
 func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string, error) {
+	ctx, span := otel.Tracer(name).Start(ctx, "getQueueArn")
+	defer span.End()
+
+	span.SetAttributes(attribute.String(traceNamespace+".queueUrl", *queueUrl))
+
 	result, err := client.GetQueueAttributes(
 		ctx,
 		&sqs.GetQueueAttributesInput{
@@ -106,17 +120,31 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string,
 	)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String(traceNamespace+".queueArn", result.Attributes[string(types.QueueAttributeNameQueueArn)]))
+	span.SetStatus(codes.Ok, "")
 
 	return aws.String(result.Attributes[string(types.QueueAttributeNameQueueArn)]), nil
 }
 
 func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consumer Consumer, pollingInterval time.Duration) {
-	log.Printf("Starting to listen to queue. Fetching messages every %s...", pollingInterval)
 	for {
+		ctx, span := otel.Tracer(name).Start(ctx, "listenToQueue")
+		defer span.End()
+
+		span.SetAttributes(
+			attribute.String(traceNamespace+".queueUrl", *queueUrl),
+			attribute.String(traceNamespace+".pollingInterval", pollingInterval.String()),
+		)
+
 		select {
 		case <-time.After(pollingInterval):
+			span.AddEvent("Receiving messages from queue")
+
 			receiveResult, err := client.ReceiveMessage(
 				ctx,
 				&sqs.ReceiveMessageInput{
@@ -130,11 +158,25 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consume
 			)
 
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+
 				consumer.OnError(ctx, err)
 				continue
 			}
 
+			span.SetAttributes(attribute.Int(traceNamespace+".messagesReceived", len(receiveResult.Messages)))
+
 			for _, message := range receiveResult.Messages {
+				ctx, msgSpan := otel.Tracer(name).Start(ctx, "processMessage")
+				defer msgSpan.End()
+
+				msgSpan.SetAttributes(
+					attribute.String(traceNamespace+".queueUrl", *queueUrl),
+					attribute.String(traceNamespace+".messageId", *message.MessageId),
+					attribute.String(traceNamespace+".receiptHandle", *message.ReceiptHandle),
+				)
+
 				_, err := client.DeleteMessage(
 					ctx,
 					&sqs.DeleteMessageInput{
@@ -144,8 +186,13 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consume
 				)
 
 				if err != nil {
+					msgSpan.RecordError(err)
+					msgSpan.SetStatus(codes.Error, err.Error())
+
 					consumer.OnError(ctx, err)
 				}
+
+				msgSpan.SetStatus(codes.Ok, "")
 
 				consumer.OnMessage(ctx, MessageContent{
 					Body: message.Body,
@@ -153,15 +200,20 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consume
 				})
 			}
 
+			span.SetStatus(codes.Ok, "")
+
 		case <-ctx.Done():
-			log.Printf("Context cancelled, no longer listening to queue")
 			return
 		}
 	}
 }
 
 func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) {
-	log.Printf("Deleting queue with URL %s...", *queueUrl)
+	ctx, span := otel.Tracer(name).Start(ctx, "deleteQueue")
+	defer span.End()
+
+	span.SetAttributes(attribute.String(traceNamespace+".queueUrl", *queueUrl))
+
 	_, err := client.DeleteQueue(
 		ctx,
 		&sqs.DeleteQueueInput{
@@ -170,9 +222,10 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) {
 	)
 
 	if err != nil {
-		log.Printf("Unable to delete queue: %s", err.Error())
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 	} else {
-		log.Printf("Deleted queue")
+		span.SetStatus(codes.Ok, "")
 	}
 
 }
