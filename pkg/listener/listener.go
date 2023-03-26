@@ -128,7 +128,7 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 	}
 
 	defer func() {
-		unsubscribeFromTopic(context.Background(), snsClient, subscriptionArn)
+		teardownErrors = append(teardownErrors, unsubscribeFromTopic(context.Background(), snsClient, subscriptionArn))
 	}()
 
 	span.SetStatus(codes.Ok, "Initialised successfully")
