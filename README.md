@@ -2,6 +2,10 @@
 
 This util will let you listen to a Simple Notification Service (SNS) topic by creating a Simple Queue Service (SQS) queue and subscribing that queue to the SNS topic. When it's done, it'll delete the queue and the subscription.
 
+You can also import the package yourself and use it for your own purposes. Check the documentation [here](./pkg/listener/README.md)!
+
+Pre-compiled binaries are available on the [releases page](https://github.com/whatsfordinner/aws-sns-listener/releases).
+
 ## Usage
 
 ```
