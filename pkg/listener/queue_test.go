@@ -170,12 +170,12 @@ func TestCreateQueue(t *testing.T) {
 			}
 
 			if err == nil && !test.shouldErr {
-				match, _ := regexp.MatchString(test.queueUrlRegexp, *queueUrl)
+				match, _ := regexp.MatchString(test.queueUrlRegexp, queueUrl)
 
 				if !match {
 					t.Fatalf(
 						"Queue URL %s did not match regex %s",
-						*queueUrl,
+						queueUrl,
 						test.queueUrlRegexp,
 					)
 				}
@@ -187,17 +187,17 @@ func TestCreateQueue(t *testing.T) {
 func TestGetQueueArn(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr   bool
-		queueUrl    *string
+		queueUrl    string
 		expectedArn string
 	}{
 		"valid queue": {
 			false,
-			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			"https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue",
 			"arn:aws:sqs:us-east-1:123456789012:valid-queue",
 		},
 		"invalid queue": {
 			true,
-			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue"),
+			"https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue",
 			"",
 		},
 	}
@@ -221,10 +221,10 @@ func TestGetQueueArn(t *testing.T) {
 			}
 
 			if err == nil && !test.shouldErr {
-				if *result != test.expectedArn {
+				if result != test.expectedArn {
 					t.Fatalf(
 						"Queue ARN %s did not match expected ARN %s",
-						*result,
+						result,
 						test.expectedArn,
 					)
 				}
@@ -236,12 +236,12 @@ func TestGetQueueArn(t *testing.T) {
 func TestListenToQueue(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr bool
-		queueUrl  *string
+		queueUrl  string
 		messages  []types.Message
 	}{
 		"valid queue with valid receipts": {
 			false,
-			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			"https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue",
 			[]types.Message{
 				{
 					Body:          aws.String("foo"),
@@ -252,12 +252,12 @@ func TestListenToQueue(t *testing.T) {
 		},
 		"empty queue": {
 			false,
-			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			"https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue",
 			[]types.Message{},
 		},
 		"invalid queue": {
 			true,
-			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue"),
+			"https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue",
 			[]types.Message{
 				{
 					Body:          aws.String("foo"),
@@ -268,7 +268,7 @@ func TestListenToQueue(t *testing.T) {
 		},
 		"valid queue with invalid receipts": {
 			true,
-			aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"),
+			"https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue",
 			[]types.Message{
 				{
 					Body:          aws.String("foo"),
@@ -321,10 +321,10 @@ func TestListenToQueue(t *testing.T) {
 func TestDeleteQueue(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr bool
-		queueUrl  *string
+		queueUrl  string
 	}{
-		"valid queue":   {false, aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue")},
-		"invalid queue": {true, aws.String("https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue")},
+		"valid queue":   {false, "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue"},
+		"invalid queue": {true, "https://sqs.us-east-1.amazonaws.com/123456789012/invalid-queue"},
 	}
 
 	client := &SQSAPIImpl{}

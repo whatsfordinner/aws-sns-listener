@@ -30,10 +30,10 @@ func TestGetParameter(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr     bool
 		parameterPath string
-		expectedValue *string
+		expectedValue string
 	}{
-		"parameter exists":         {false, "/valid/param/path", aws.String("some-value")},
-		"parameter does not exist": {true, "/invalid/param/path", nil},
+		"parameter exists":         {false, "/valid/param/path", "some-value"},
+		"parameter does not exist": {true, "/invalid/param/path", ""},
 	}
 
 	client := &SSMAPIImpl{}
@@ -55,10 +55,10 @@ func TestGetParameter(t *testing.T) {
 			}
 
 			if err == nil && !test.shouldErr {
-				if *test.expectedValue != *param {
+				if test.expectedValue != param {
 					t.Fatalf("Parameter value %s did not match expected value %s",
-						*param,
-						*test.expectedValue,
+						param,
+						test.expectedValue,
 					)
 				}
 			}

@@ -18,7 +18,7 @@ type SSMAPI interface {
 		optFns ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
 }
 
-func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*string, error) {
+func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (string, error) {
 	ctx, span := otel.Tracer(name).Start(ctx, "getParameter")
 	defer span.End()
 
@@ -37,7 +37,7 @@ func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*st
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+		return "", err
 	}
 
 	logger.Printf("Successfully fetched paramater value: %s", *result.Parameter.Value)
@@ -45,5 +45,5 @@ func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*st
 	span.SetAttributes(attribute.String(traceNamespace+".ssmParameterValue", *result.Parameter.Value))
 	span.SetStatus(codes.Ok, "")
 
-	return result.Parameter.Value, nil
+	return *result.Parameter.Value, nil
 }

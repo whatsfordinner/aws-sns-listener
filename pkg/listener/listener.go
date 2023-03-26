@@ -93,7 +93,7 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 			return err
 		}
 
-		cfg.TopicArn = *topicArn
+		cfg.TopicArn = topicArn
 	}
 
 	queueUrl, err := createQueue(ctx, sqsClient, cfg.QueueName, cfg.TopicArn)
@@ -114,7 +114,7 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 		return err
 	}
 
-	subscriptionArn, err := subscribeToTopic(ctx, snsClient, &cfg.TopicArn, queueArn)
+	subscriptionArn, err := subscribeToTopic(ctx, snsClient, cfg.TopicArn, queueArn)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())

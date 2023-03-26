@@ -35,16 +35,16 @@ func (c SNSAPIImpl) Unsubscribe(ctx context.Context,
 func TestSubscribe(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr   bool
-		topicArn    *string
+		topicArn    string
 		expectedArn string
 	}{
-		"valid input":   {false, aws.String("valid-topic"), "foo:bar:baz"},
-		"invalid input": {true, aws.String("invalid-topic"), ""},
+		"valid input":   {false, "valid-topic", "foo:bar:baz"},
+		"invalid input": {true, "invalid-topic", ""},
 	}
 
 	client := &SNSAPIImpl{}
 	ctx := context.TODO()
-	queueArn := aws.String("some-valid-queue")
+	queueArn := "some-valid-queue"
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {})
@@ -62,10 +62,10 @@ func TestSubscribe(t *testing.T) {
 		}
 
 		if err == nil && !test.shouldErr {
-			if *result != test.expectedArn {
+			if result != test.expectedArn {
 				t.Fatalf(
 					"Subscription ARN %s did not match expected ARN %s",
-					*result,
+					result,
 					test.expectedArn,
 				)
 			}
@@ -76,10 +76,10 @@ func TestSubscribe(t *testing.T) {
 func TestUnsubscribe(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr       bool
-		subscriptionArn *string
+		subscriptionArn string
 	}{
-		"valid subscription ARN":   {false, aws.String("valid:arn")},
-		"invalid subscription ARN": {true, aws.String("invalid:arn")},
+		"valid subscription ARN":   {false, "valid:arn"},
+		"invalid subscription ARN": {true, "invalid:arn"},
 	}
 
 	ctx := context.TODO()
@@ -95,11 +95,11 @@ func TestUnsubscribe(t *testing.T) {
 func TestIsTopicFIFO(t *testing.T) {
 	tests := map[string]struct {
 		shouldErr bool
-		topicArn  *string
+		topicArn  string
 		expected  bool
 	}{
-		"FIFO topic":       {false, aws.String("arn:aws:sns:us-east-1:123456789012:my-topic.fifo"), true},
-		"not a FIFO topic": {false, aws.String("arn:aws:sns:us-east-1:123456789012:my-topic"), false},
+		"FIFO topic":       {false, "arn:aws:sns:us-east-1:123456789012:my-topic.fifo", true},
+		"not a FIFO topic": {false, "arn:aws:sns:us-east-1:123456789012:my-topic", false},
 	}
 
 	ctx := context.TODO()
@@ -124,7 +124,7 @@ func TestIsTopicFIFO(t *testing.T) {
 					t.Fatalf(
 						"Expected %t for topic with ARN %s but got %t",
 						test.expected,
-						*test.topicArn,
+						test.topicArn,
 						result,
 					)
 				}

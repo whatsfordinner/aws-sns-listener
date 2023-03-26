@@ -23,31 +23,31 @@ type SNSAPI interface {
 		optFns ...func(*sns.Options)) (*sns.UnsubscribeOutput, error)
 }
 
-func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queueArn *string) (*string, error) {
+func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn string, queueArn string) (string, error) {
 	ctx, span := otel.Tracer(name).Start(ctx, "subscribeToTopic")
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String(traceNamespace+".topicArn", *topicArn),
-		attribute.String(traceNamespace+".queueArn", *queueArn),
+		attribute.String(traceNamespace+".topicArn", topicArn),
+		attribute.String(traceNamespace+".queueArn", queueArn),
 	)
 
-	logger.Printf("Creating a new SNS subscription...\n\tSNS topic ARN: %s\n\tSQS queue ARN: %s", *topicArn, *queueArn)
+	logger.Printf("Creating a new SNS subscription...\n\tSNS topic ARN: %s\n\tSQS queue ARN: %s", topicArn, queueArn)
 
 	result, err := client.Subscribe(
 		ctx,
 		&sns.SubscribeInput{
-			Endpoint:              queueArn,
+			Endpoint:              &queueArn,
 			Protocol:              aws.String("sqs"),
 			ReturnSubscriptionArn: true,
-			TopicArn:              topicArn,
+			TopicArn:              &topicArn,
 		},
 	)
 
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+		return "", err
 	}
 
 	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", *result.SubscriptionArn))
@@ -55,21 +55,21 @@ func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queu
 
 	logger.Printf("Subscription created with ARN %s", *result.SubscriptionArn)
 
-	return result.SubscriptionArn, nil
+	return *result.SubscriptionArn, nil
 }
 
-func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *string) {
+func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn string) {
 	ctx, span := otel.Tracer(name).Start(ctx, "unsubscribeFromTopic")
 	defer span.End()
 
-	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", *subscriptionArn))
+	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", subscriptionArn))
 
-	logger.Printf("Removing subscription with ARN %s...", *subscriptionArn)
+	logger.Printf("Removing subscription with ARN %s...", subscriptionArn)
 
 	_, err := client.Unsubscribe(
 		ctx,
 		&sns.UnsubscribeInput{
-			SubscriptionArn: subscriptionArn,
+			SubscriptionArn: &subscriptionArn,
 		},
 	)
 
@@ -86,9 +86,9 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 
 }
 
-func isTopicFIFO(ctx context.Context, topicArn *string) (bool, error) {
+func isTopicFIFO(ctx context.Context, topicArn string) (bool, error) {
 	_, span := otel.Tracer(name).Start(ctx, "isTopicFIFO")
 	defer span.End()
 
-	return regexp.MatchString(`\.fifo$`, *topicArn)
+	return regexp.MatchString(`\.fifo$`, topicArn)
 }
