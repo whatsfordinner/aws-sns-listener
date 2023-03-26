@@ -11,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+// SNSAPI is a shim over v2 of the AWS SDK's sns client. The sns client provided by
+// github.com/aws/aws-sdk-go-v2/service/sns automatically satisfies this.
 type SNSAPI interface {
 	Subscribe(ctx context.Context,
 		params *sns.SubscribeInput,

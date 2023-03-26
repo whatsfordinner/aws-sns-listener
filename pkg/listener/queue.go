@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+// SQSAPI is a shim over v2 of the AWS SDK's sqs client. The sqs client provided by
+// github.com/aws/aws-sdk-go-v2/service/sqs automatically satisfies this.
 type SQSAPI interface {
 	CreateQueue(ctx context.Context,
 		params *sqs.CreateQueueInput,

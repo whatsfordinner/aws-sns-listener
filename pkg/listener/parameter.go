@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+// SSMAPI is a shim over v2 of the AWS SDK's ssm client. The ssm client provided by
+// github.com/aws/aws-sdk-go-v2/service/ssm automatically satisfies this.
 type SSMAPI interface {
 	GetParameter(ctx context.Context,
 		params *ssm.GetParameterInput,
