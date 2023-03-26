@@ -218,7 +218,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 	}
 }
 
-func deleteQueue(ctx context.Context, client SQSAPI, queueUrl string) {
+func deleteQueue(ctx context.Context, client SQSAPI, queueUrl string) error {
 	ctx, span := otel.Tracer(name).Start(ctx, "deleteQueue")
 	defer span.End()
 
@@ -238,10 +238,11 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl string) {
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-	} else {
-		logger.Printf("Deleted queue")
-
-		span.SetStatus(codes.Ok, "")
+		return err
 	}
 
+	logger.Printf("Deleted queue")
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }

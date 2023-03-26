@@ -13,6 +13,7 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -96,6 +97,8 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 		cfg.TopicArn = topicArn
 	}
 
+	teardownErrors := []error{}
+
 	queueUrl, err := createQueue(ctx, sqsClient, cfg.QueueName, cfg.TopicArn)
 
 	if err != nil {
@@ -104,7 +107,9 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 		return err
 	}
 
-	defer deleteQueue(context.Background(), sqsClient, queueUrl)
+	defer func() {
+		teardownErrors = append(teardownErrors, deleteQueue(context.Background(), sqsClient, queueUrl))
+	}()
 
 	queueArn, err := getQueueArn(ctx, sqsClient, queueUrl)
 
@@ -122,12 +127,18 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 		return err
 	}
 
-	defer unsubscribeFromTopic(context.Background(), snsClient, subscriptionArn)
+	defer func() {
+		unsubscribeFromTopic(context.Background(), snsClient, subscriptionArn)
+	}()
 
 	span.SetStatus(codes.Ok, "Initialised successfully")
 	span.End()
 
 	listenToQueue(ctx, sqsClient, queueUrl, consumer, cfg.PollingInterval)
+
+	if len(teardownErrors) != 0 {
+		return errors.Join(teardownErrors...)
+	}
 
 	return nil
 }

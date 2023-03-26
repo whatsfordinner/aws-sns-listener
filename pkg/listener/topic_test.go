@@ -58,7 +58,7 @@ func TestSubscribe(t *testing.T) {
 		}
 
 		if err == nil && test.shouldErr {
-			t.Fatalf("Expected error but got no error")
+			t.Fatal("Expected error but got no error")
 		}
 
 		if err == nil && !test.shouldErr {
@@ -87,7 +87,18 @@ func TestUnsubscribe(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			unsubscribeFromTopic(ctx, client, test.subscriptionArn)
+			err := unsubscribeFromTopic(ctx, client, test.subscriptionArn)
+
+			if err != nil && !test.shouldErr {
+				t.Fatalf(
+					"Expected no error but got %s",
+					err.Error(),
+				)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("Expected error but got no error")
+			}
 		})
 	}
 }

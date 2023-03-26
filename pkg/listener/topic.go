@@ -58,7 +58,7 @@ func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn string, queue
 	return *result.SubscriptionArn, nil
 }
 
-func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn string) {
+func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn string) error {
 	ctx, span := otel.Tracer(name).Start(ctx, "unsubscribeFromTopic")
 	defer span.End()
 
@@ -74,16 +74,17 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn st
 	)
 
 	if err != nil {
+		logger.Printf("Unable to subscribe from topic: %s", err.Error())
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-
-		logger.Printf("Unable to subscribe from topic: %s", err.Error())
-	} else {
-		span.SetStatus(codes.Ok, "")
-
-		logger.Print("Subscription removed")
+		return err
 	}
 
+	logger.Print("Subscription removed")
+
+	span.SetStatus(codes.Ok, "")
+	return nil
 }
 
 func isTopicFIFO(ctx context.Context, topicArn string) (bool, error) {

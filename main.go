@@ -76,6 +76,7 @@ func main() {
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
+
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -96,7 +97,6 @@ func main() {
 		log.Print("Received interrupt instruction, cancelling context")
 
 		cancel()
-
 		err := <-errCh
 
 		if err != nil {

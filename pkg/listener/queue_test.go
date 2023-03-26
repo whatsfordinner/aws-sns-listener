@@ -306,7 +306,8 @@ func TestListenToQueue(t *testing.T) {
 			cancel()
 
 			if len(consumer.errors) > 0 && !test.shouldErr {
-				t.Fatalf("Expected no error but got %s",
+				t.Fatalf(
+					"Expected no error but got %s",
 					(<-consumer.errors).Error(),
 				)
 			}
@@ -332,7 +333,18 @@ func TestDeleteQueue(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			deleteQueue(ctx, client, test.queueUrl)
+			err := deleteQueue(ctx, client, test.queueUrl)
+
+			if err != nil && !test.shouldErr {
+				t.Fatalf(
+					"Expected no error but got %s",
+					err.Error(),
+				)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("Expected error but got no error")
+			}
 		})
 	}
 }
