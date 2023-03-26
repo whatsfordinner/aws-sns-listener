@@ -57,13 +57,13 @@ listenerCfg := listener.ListenerConfiguration {
 The final component is the `listener.Consumer` interface which is used by the package to notify the calling service of messages. It requires two methods `OnMessage(context.Context, listener.MessageContent)` and `OnError(context.Context, error)`. Context is supplied for use with tracing and to notify the consumer in the event of cancellation. An example implementation would be:
 
 ```go
-type c struct{}
+type consumer struct{}
 
-func (c listener.Consumer) OnMessage(ctx context.Context, msg listener.MessageContent) {
+func (c consumer) OnMessage(ctx context.Context, msg listener.MessageContent) {
     fmt.Printf("Message content:\n\tID: %s\n\tBody: %s\n", msg.Id, msg.Body)
 }
 
-func (c listener.Consumer) OnError(ctx context.Context, err error) {
+func (c consumer) OnError(ctx context.Context, err error) {
     fmt.Print(err.Error())
 }
 ```
@@ -86,7 +86,7 @@ go func() {
         sqsClient,
         snsClient,
         ssmClient,
-        c{}, // our consumer from earlier
+        consumer{}, // our consumer from earlier
         listenerCfg, // one of the configuration object from before
     )
 }()
