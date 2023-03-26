@@ -83,6 +83,8 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 		attribute.Bool(traceNamespace+".isFIFO", isFIFO),
 	)
 
+	logger.Printf("Creating new queue...\n\tName: %s\n\tAllowing messages from topic: %s\n\tFIFO: %t", queueName, topicArn, isFIFO)
+
 	result, err := client.CreateQueue(
 		ctx,
 		&sqs.CreateQueueInput{
@@ -98,6 +100,8 @@ func createQueue(ctx context.Context, client SQSAPI, queueName string, topicArn 
 	}
 
 	span.SetAttributes(attribute.String(traceNamespace+".queueUrl", *result.QueueUrl))
+
+	logger.Printf("Queue created with URL %s", *result.QueueUrl)
 
 	span.SetStatus(codes.Ok, "")
 	return result.QueueUrl, nil
@@ -132,6 +136,7 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl *string) (*string,
 }
 
 func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consumer Consumer, pollingInterval time.Duration) {
+	logger.Printf("Starting to listen to queue. Fetching messages every %s...", pollingInterval.String())
 	for {
 		ctx, span := otel.Tracer(name).Start(ctx, "listenToQueue")
 		defer span.End()
@@ -203,6 +208,9 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl *string, consume
 			span.SetStatus(codes.Ok, "")
 
 		case <-ctx.Done():
+			logger.Printf("Context cancelled, no longer listening to queue")
+
+			span.SetStatus(codes.Ok, "")
 			return
 		}
 	}
@@ -214,6 +222,8 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) {
 
 	span.SetAttributes(attribute.String(traceNamespace+".queueUrl", *queueUrl))
 
+	logger.Printf("Deleting queue with URL %s...", *queueUrl)
+
 	_, err := client.DeleteQueue(
 		ctx,
 		&sqs.DeleteQueueInput{
@@ -222,9 +232,13 @@ func deleteQueue(ctx context.Context, client SQSAPI, queueUrl *string) {
 	)
 
 	if err != nil {
+		logger.Printf("Unable to delete queue: %s", err.Error())
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	} else {
+		logger.Printf("Deleted queue")
+
 		span.SetStatus(codes.Ok, "")
 	}
 

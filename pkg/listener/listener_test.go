@@ -2,12 +2,11 @@ package listener
 
 import (
 	"io"
-	"log"
 	"os"
 	"testing"
 )
 
 func TestMain(m *testing.M) {
-	log.SetOutput(io.Discard)
+	logger.SetOutput(io.Discard)
 	os.Exit(m.Run())
 }

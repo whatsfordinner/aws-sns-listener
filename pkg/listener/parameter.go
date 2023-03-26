@@ -22,6 +22,8 @@ func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*st
 
 	span.SetAttributes(attribute.String(traceNamespace+".ssmParameter", parameterPath))
 
+	logger.Printf("Fetching topic ARN from SSM parameter at path %s...", parameterPath)
+
 	result, err := client.GetParameter(
 		ctx,
 		&ssm.GetParameterInput{
@@ -35,6 +37,8 @@ func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (*st
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+
+	logger.Printf("Successfully fetched paramater value: %s", *result.Parameter.Value)
 
 	span.SetAttributes(attribute.String(traceNamespace+".ssmParameterValue", *result.Parameter.Value))
 	span.SetStatus(codes.Ok, "")

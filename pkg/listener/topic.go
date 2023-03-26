@@ -30,6 +30,8 @@ func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queu
 		attribute.String(traceNamespace+".queueArn", *queueArn),
 	)
 
+	logger.Printf("Creating a new SNS subscription...\n\tSNS topic ARN: %s\n\tSQS queue ARN: %s", *topicArn, *queueArn)
+
 	result, err := client.Subscribe(
 		ctx,
 		&sns.SubscribeInput{
@@ -49,6 +51,8 @@ func subscribeToTopic(ctx context.Context, client SNSAPI, topicArn *string, queu
 	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", *result.SubscriptionArn))
 	span.SetStatus(codes.Ok, "")
 
+	logger.Printf("Subscription created with ARN %s", *result.SubscriptionArn)
+
 	return result.SubscriptionArn, nil
 }
 
@@ -57,6 +61,8 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 	defer span.End()
 
 	span.SetAttributes(attribute.String(traceNamespace+".subscriptionArn", *subscriptionArn))
+
+	logger.Printf("Removing subscription with ARN %s...", *subscriptionArn)
 
 	_, err := client.Unsubscribe(
 		ctx,
@@ -68,8 +74,12 @@ func unsubscribeFromTopic(ctx context.Context, client SNSAPI, subscriptionArn *s
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+
+		logger.Printf("Unable to subscribe from topic: %s", err.Error())
 	} else {
 		span.SetStatus(codes.Ok, "")
+
+		logger.Print("Subscription removed")
 	}
 
 }

@@ -2,6 +2,9 @@ package listener
 
 import (
 	"context"
+	"io"
+	"log"
+	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -10,6 +13,12 @@ import (
 
 const name string = "github.com/whatsfordinner/aws-sns-listener/pkg/listener"
 const traceNamespace string = "aws-sns-listener"
+
+var logger *log.Logger = log.New(
+	io.Discard,
+	log.Default().Prefix(),
+	log.Default().Flags(),
+)
 
 type Consumer interface {
 	OnMessage(ctx context.Context, msg MessageContent)
@@ -27,10 +36,16 @@ type ListenerConfiguration struct {
 	QueueName       string
 	ParameterPath   string
 	TopicArn        string
+	Verbose         bool
 }
 
 func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmClient SSMAPI, consumer Consumer, cfg ListenerConfiguration) error {
 	ctx, span := otel.Tracer(name).Start(ctx, "Startup")
+
+	if cfg.Verbose {
+		logger.SetOutput(os.Stderr)
+	}
+
 	if cfg.PollingInterval == 0 {
 		cfg.PollingInterval = time.Second
 	}
