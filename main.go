@@ -33,12 +33,28 @@ func main() {
 	parameterPath := flag.String("p", "", "The path of the SSM parameter to get the topic ARN from, cannot be set along with topic ARN")
 	queueName := flag.String("q", "", "Optional name for the queue to create")
 	pollingInterval := flag.Int("i", 0, "Optional duration for delay when polling the SQS queue")
+	verbose := flag.Bool("v", false, "Log listener package events")
+	enableOtlp := flag.Bool("o", false, "Enable the GRPC OTLP exporter")
 
 	flag.Parse()
 
 	if *topicArn == "" && *parameterPath == "" {
 		flag.Usage()
 		os.Exit(1)
+	}
+
+	if *enableOtlp {
+		log.Print("Initialising GRPC OTLP exporter...")
+		shutdownTracing, err := initTracing()
+
+		if err != nil {
+			log.Fatalf(
+				"Error initialising OpenTelemetry: %s",
+				err.Error(),
+			)
+		}
+
+		defer shutdownTracing()
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx)
@@ -55,14 +71,15 @@ func main() {
 		PollingInterval: time.Duration(*pollingInterval) * time.Millisecond,
 		QueueName:       *queueName,
 		TopicArn:        *topicArn,
+		Verbose:         *verbose,
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	result := make(chan error, 1)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	errCh := make(chan error, 1)
 
 	go func() {
-		result <- listener.ListenToTopic(
+		errCh <- listener.ListenToTopic(
 			ctx,
 			sqs.NewFromConfig(cfg),
 			sns.NewFromConfig(cfg),
@@ -72,13 +89,20 @@ func main() {
 		)
 	}()
 
-	<-c
-	cancel()
+	select {
+	case err := <-errCh:
+		log.Fatalf("Runtime error: %s", err.Error())
+	case <-sigCh:
+		log.Print("Received interrupt instruction, cancelling context")
 
-	if (<-result) != nil {
-		log.Fatalf(
-			"Error at runtime: %s",
-			err.Error(),
-		)
+		cancel()
+
+		err := <-errCh
+
+		if err != nil {
+			log.Fatalf("Error during teardown: %s", err.Error())
+		}
+
+		log.Print("Teardown complete")
 	}
 }
