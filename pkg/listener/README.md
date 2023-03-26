@@ -1,5 +1,7 @@
 # AWS SNS listener package
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/whatsfordinner/aws-sns-listener/pkg/listener.svg)](https://pkg.go.dev/github.com/whatsfordinner/aws-sns-listener/pkg/listener)
+
 The `listener` package can be used for listening to an Amazon SNS topic. It supports both regular topics and FIFO topics. The original motivation for this project was to be able to subscribe to a SNS topic and identify the shape and content of messages being published, making it easier to build other software. A CLI that wraps this package is available in the root of this repository.
 
 ## Using the package
