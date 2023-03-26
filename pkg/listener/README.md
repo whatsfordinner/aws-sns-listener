@@ -50,6 +50,7 @@ listenerCfg := listener.ListenerConfiguration {
     ParameterPath:   "/path/to/topic-arn"
     PollingInterval: 30 * time.Second 
     QueueName:       "my-listener-queue"
+    Verbose:         true
 }
 ```
 
