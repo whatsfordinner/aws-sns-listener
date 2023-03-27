@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/whatsfordinner/aws-sns-listener/pkg/listener"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 )
 
 type consumer struct{}
@@ -58,6 +59,8 @@ func main() {
 	}
 
 	cfg, err := config.LoadDefaultConfig(ctx)
+
+	otelaws.AppendMiddlewares(&cfg.APIOptions)
 
 	if err != nil {
 		log.Fatalf(

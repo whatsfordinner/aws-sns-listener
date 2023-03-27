@@ -140,16 +140,15 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl string) (string, e
 func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer Consumer, pollingInterval time.Duration) {
 	logger.Printf("Starting to listen to queue. Fetching messages every %s...", pollingInterval.String())
 	for {
-		ctx, span := otel.Tracer(name).Start(ctx, "listenToQueue")
-		defer span.End()
-
-		span.SetAttributes(
-			attribute.String(traceNamespace+".queueUrl", queueUrl),
-			attribute.String(traceNamespace+".pollingInterval", pollingInterval.String()),
-		)
-
 		select {
 		case <-time.After(pollingInterval):
+			ctx, span := otel.Tracer(name).Start(ctx, "listenToQueue")
+			defer span.End()
+
+			span.SetAttributes(
+				attribute.String(traceNamespace+".queueUrl", queueUrl),
+				attribute.String(traceNamespace+".pollingInterval", pollingInterval.String()),
+			)
 			span.AddEvent("Receiving messages from queue")
 
 			receiveResult, err := client.ReceiveMessage(
@@ -175,8 +174,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 			span.SetAttributes(attribute.Int(traceNamespace+".messagesReceived", len(receiveResult.Messages)))
 
 			for _, message := range receiveResult.Messages {
-				ctx, msgSpan := otel.Tracer(name).Start(ctx, "processMessage")
-				defer msgSpan.End()
+				msgCtx, msgSpan := otel.Tracer(name).Start(ctx, "processMessage")
 
 				msgSpan.SetAttributes(
 					attribute.String(traceNamespace+".queueUrl", queueUrl),
@@ -185,7 +183,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 				)
 
 				_, err := client.DeleteMessage(
-					ctx,
+					msgCtx,
 					&sqs.DeleteMessageInput{
 						QueueUrl:      &queueUrl,
 						ReceiptHandle: message.ReceiptHandle,
@@ -196,23 +194,27 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 					msgSpan.RecordError(err)
 					msgSpan.SetStatus(codes.Error, err.Error())
 
-					consumer.OnError(ctx, err)
+					consumer.OnError(msgCtx, err)
+					msgSpan.End()
+					continue
 				}
 
-				msgSpan.SetStatus(codes.Ok, "")
+				consumer.OnMessage(
+					msgCtx,
+					MessageContent{
+						Body: message.Body,
+						Id:   message.MessageId,
+					})
 
-				consumer.OnMessage(ctx, MessageContent{
-					Body: message.Body,
-					Id:   message.MessageId,
-				})
+				msgSpan.SetStatus(codes.Ok, "")
+				msgSpan.End()
 			}
 
 			span.SetStatus(codes.Ok, "")
+			span.End()
 
 		case <-ctx.Done():
 			logger.Printf("Context cancelled, no longer listening to queue")
-
-			span.SetStatus(codes.Ok, "")
 			return
 		}
 	}
