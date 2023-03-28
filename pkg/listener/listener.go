@@ -13,7 +13,6 @@ package listener
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log"
 	"os"
@@ -72,9 +71,10 @@ type ListenerConfiguration struct {
 
 // ListenToTopic is the entrypoint to the package. In the course of normal operations, ListenToTopic will create a new SQS queue, subscribe it to
 // the SNS topic and receive messages from the queue until the provided context has been cancelled. When the context has been cancelled it will
-// destroy the subscription and queue, returning any errors it encountered while doing so. Therefore it is recommended to use a channel to wait
-// for the function to finish inside of the goroutine that is spawned.
-func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmClient SSMAPI, consumer Consumer, cfg ListenerConfiguration) error {
+// destroy the subscription and queue. ListenToTopic will always make a best effort to clean up any infrastructure that it's created and so can emit
+// one or more errors on the error channel as it tries to shutdown. The error channel will be closed when the function is finished.
+func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmClient SSMAPI, consumer Consumer, cfg ListenerConfiguration, errCh chan error) {
+	defer close(errCh)
 	startupCtx, span := otel.Tracer(name).Start(ctx, "Startup")
 
 	if cfg.Verbose {
@@ -91,24 +91,28 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 		if err != nil {
 			span.SetStatus(codes.Error, err.Error())
 			span.End()
-			return err
+			errCh <- err
+			return
 		}
 
 		cfg.TopicArn = topicArn
 	}
-
-	teardownErrors := []error{}
 
 	queueUrl, err := createQueue(startupCtx, sqsClient, cfg.QueueName, cfg.TopicArn)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.End()
-		return err
+		errCh <- err
+		return
 	}
 
 	defer func() {
-		teardownErrors = append(teardownErrors, deleteQueue(context.Background(), sqsClient, queueUrl))
+		err := deleteQueue(context.Background(), sqsClient, queueUrl)
+
+		if err != nil {
+			errCh <- err
+		}
 	}()
 
 	queueArn, err := getQueueArn(startupCtx, sqsClient, queueUrl)
@@ -116,7 +120,8 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.End()
-		return err
+		errCh <- err
+		return
 	}
 
 	subscriptionArn, err := subscribeToTopic(startupCtx, snsClient, cfg.TopicArn, queueArn)
@@ -124,21 +129,19 @@ func ListenToTopic(ctx context.Context, sqsClient SQSAPI, snsClient SNSAPI, ssmC
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.End()
-		return err
+		errCh <- err
+		return
 	}
 
 	defer func() {
-		teardownErrors = append(teardownErrors, unsubscribeFromTopic(context.Background(), snsClient, subscriptionArn))
+		err := unsubscribeFromTopic(context.Background(), snsClient, subscriptionArn)
+		if err != nil {
+			errCh <- err
+		}
 	}()
 
 	span.SetStatus(codes.Ok, "")
 	span.End()
 
 	listenToQueue(ctx, sqsClient, queueUrl, consumer, cfg.PollingInterval)
-
-	if len(teardownErrors) != 0 {
-		return errors.Join(teardownErrors...)
-	}
-
-	return nil
 }

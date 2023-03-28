@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -80,27 +81,36 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
 
-	errCh := make(chan error, 1)
+	errCh := make(chan error)
 
 	go func() {
-		errCh <- listener.ListenToTopic(
+		listener.ListenToTopic(
 			ctx,
 			sqs.NewFromConfig(cfg),
 			sns.NewFromConfig(cfg),
 			ssm.NewFromConfig(cfg),
 			consumer{},
 			listenerCfg,
+			errCh,
 		)
 	}()
 
 	select {
 	case err := <-errCh:
+		for errs := range errCh {
+			err = errors.Join(err, errs)
+		}
+
 		log.Fatalf("Runtime error: %s", err.Error())
 	case <-sigCh:
 		log.Print("Received interrupt instruction, cancelling context")
 
 		cancel()
 		err := <-errCh
+
+		for errs := range errCh {
+			err = errors.Join(err, errs)
+		}
 
 		if err != nil {
 			log.Fatalf("Error during teardown: %s", err.Error())

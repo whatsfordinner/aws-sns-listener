@@ -16,9 +16,16 @@ func (c SNSAPIImpl) Subscribe(ctx context.Context,
 	optFns ...func(*sns.Options)) (*sns.SubscribeOutput, error) {
 	if *params.TopicArn == "valid-topic" {
 		return &sns.SubscribeOutput{
-			SubscriptionArn: aws.String("foo:bar:baz"),
+			SubscriptionArn: aws.String("valid:arn"),
 		}, nil
 	}
+
+	if *params.TopicArn == "breaks-on-teardown" {
+		return &sns.SubscribeOutput{
+			SubscriptionArn: aws.String("invalid:arn"),
+		}, nil
+	}
+
 	return nil, errors.New("Couldn't subscribe to topic")
 }
 
@@ -38,7 +45,7 @@ func TestSubscribe(t *testing.T) {
 		topicArn    string
 		expectedArn string
 	}{
-		"valid input":   {false, "valid-topic", "foo:bar:baz"},
+		"valid input":   {false, "valid-topic", "valid:arn"},
 		"invalid input": {true, "invalid-topic", ""},
 	}
 
@@ -47,29 +54,30 @@ func TestSubscribe(t *testing.T) {
 	queueArn := "some-valid-queue"
 
 	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {})
-		result, err := subscribeToTopic(ctx, client, test.topicArn, queueArn)
+		t.Run(name, func(t *testing.T) {
+			result, err := subscribeToTopic(ctx, client, test.topicArn, queueArn)
 
-		if err != nil && !test.shouldErr {
-			t.Fatalf(
-				"Expected no error but got %s",
-				err.Error(),
-			)
-		}
-
-		if err == nil && test.shouldErr {
-			t.Fatal("Expected error but got no error")
-		}
-
-		if err == nil && !test.shouldErr {
-			if result != test.expectedArn {
+			if err != nil && !test.shouldErr {
 				t.Fatalf(
-					"Subscription ARN %s did not match expected ARN %s",
-					result,
-					test.expectedArn,
+					"Expected no error but got %s",
+					err.Error(),
 				)
 			}
-		}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("Expected error but got no error")
+			}
+
+			if err == nil && !test.shouldErr {
+				if result != test.expectedArn {
+					t.Fatalf(
+						"Subscription ARN %s did not match expected ARN %s",
+						result,
+						test.expectedArn,
+					)
+				}
+			}
+		})
 	}
 }
 

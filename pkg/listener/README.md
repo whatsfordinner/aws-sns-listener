@@ -78,25 +78,32 @@ ctx, cancel := context.WithCancel(context.Background())
 sigCh := make(chan os.Signal, 1)
 signal.Notify(sigCh, os.Interrupt) // stop on Ctrl+C
 
-errCh := make(chan error, 1)
+errCh := make(chan error)
 
 go func() {
-    errCh <- listener.ListenToTopic(
+    listener.ListenToTopic(
         ctx,
         sqsClient,
         snsClient,
         ssmClient,
         consumer{}, // our consumer from earlier
         listenerCfg, // one of the configuration object from before
+        errCh,
     )
 }()
 
 select {
 case err := <- errCh: // catch any errors on startup
+    for errs := range errCh {
+        err = errors.Join(err, errs) // process additional errors from the teardown process
+    }
     panic(err)
 case <- sigCh: // catch SIGINT
     cancel() // notify the goroutine it's time to shutdown
     err := <- errCh // wait for the result of teardown
+    for errs := range errCh {
+        err = errors.Join(err, errs) // process additional errors from the teardown process
+    }
 
     if err != nil {
         panic(err)

@@ -57,6 +57,14 @@ func (c SQSAPIImpl) GetQueueAttributes(ctx context.Context,
 		}, nil
 	}
 
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/breaks-on-teardown" {
+		return &sqs.GetQueueAttributesOutput{
+			Attributes: map[string]string{
+				"QueueArn": "arn:aws:sqs:us-east-1:123456789012:breaks-on-teardown",
+			},
+		}, nil
+	}
+
 	return nil, errors.New("Couldn't get attributes for that queue!")
 }
 
@@ -65,7 +73,8 @@ func (c SQSAPIImpl) ReceiveMessage(ctx context.Context,
 	optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
 	queueUrl := *params.QueueUrl
 
-	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" {
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" ||
+		queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/breaks-on-teardown" {
 		if len(c.messages) > 0 {
 			return &sqs.ReceiveMessageOutput{
 				Messages: []types.Message{c.messages[0]},
@@ -84,7 +93,8 @@ func (c SQSAPIImpl) DeleteMessage(ctx context.Context,
 	params *sqs.DeleteMessageInput,
 	optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error) {
 	queueUrl := *params.QueueUrl
-	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" {
+	if queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/valid-queue" ||
+		queueUrl == "https://sqs.us-east-1.amazonaws.com/123456789012/breaks-on-teardown" {
 		for _, v := range c.messages {
 			if *v.ReceiptHandle == *params.ReceiptHandle && *params.ReceiptHandle == *v.Body+"-handle" {
 				return &sqs.DeleteMessageOutput{}, nil
