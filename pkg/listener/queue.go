@@ -137,7 +137,7 @@ func getQueueArn(ctx context.Context, client SQSAPI, queueUrl string) (string, e
 	return result.Attributes[string(types.QueueAttributeNameQueueArn)], nil
 }
 
-func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer Consumer, pollingInterval time.Duration) {
+func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer Consumer, pollingInterval time.Duration) error {
 	logger.Printf("Starting to listen to queue. Fetching messages every %s...", pollingInterval.String())
 	for {
 		select {
@@ -166,9 +166,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-
-				consumer.OnError(ctx, err)
-				continue
+				return err
 			}
 
 			span.SetAttributes(attribute.Int(traceNamespace+".messagesReceived", len(receiveResult.Messages)))
@@ -193,10 +191,8 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 				if err != nil {
 					msgSpan.RecordError(err)
 					msgSpan.SetStatus(codes.Error, err.Error())
-
-					consumer.OnError(msgCtx, err)
 					msgSpan.End()
-					continue
+					return err
 				}
 
 				consumer.OnMessage(
@@ -215,7 +211,7 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 
 		case <-ctx.Done():
 			logger.Printf("Context cancelled, no longer listening to queue")
-			return
+			return nil
 		}
 	}
 }

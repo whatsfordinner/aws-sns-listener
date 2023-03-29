@@ -107,15 +107,10 @@ func (c SQSAPIImpl) DeleteMessage(ctx context.Context,
 
 type ListenerImpl struct {
 	messages chan MessageContent
-	errors   chan error
 }
 
 func (c ListenerImpl) OnMessage(ctx context.Context, m MessageContent) {
 	c.messages <- m
-}
-
-func (c ListenerImpl) OnError(ctx context.Context, err error) {
-	c.errors <- err
 }
 
 func (c ListenerImpl) GetPollingInterval(ctx context.Context) time.Duration {
@@ -298,10 +293,10 @@ func TestListenToQueue(t *testing.T) {
 			client.messages = test.messages
 			consumer := ListenerImpl{}
 			consumer.messages = make(chan MessageContent, 1)
-			consumer.errors = make(chan error, 1)
+			errCh := make(chan error, 1)
 
 			go func() {
-				listenToQueue(
+				errCh <- listenToQueue(
 					ctx,
 					client,
 					test.queueUrl,
@@ -310,19 +305,19 @@ func TestListenToQueue(t *testing.T) {
 				)
 			}()
 
-			for len(consumer.errors) == 0 && len(consumer.messages) < len(test.messages) {
+			for len(errCh) == 0 && len(consumer.messages) < len(test.messages) {
 			}
 
 			cancel()
 
-			if len(consumer.errors) > 0 && !test.shouldErr {
+			if len(errCh) > 0 && !test.shouldErr {
 				t.Fatalf(
 					"Expected no error but got %s",
-					(<-consumer.errors).Error(),
+					(<-errCh).Error(),
 				)
 			}
 
-			if len(consumer.errors) == 0 && test.shouldErr {
+			if len(errCh) == 0 && test.shouldErr {
 				t.Fatal("Expected error but got no error")
 			}
 		})

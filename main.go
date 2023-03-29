@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -18,18 +17,17 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 )
 
+const name string = "github.com/whatsfordinner/aws-sns-listener"
+const traceNamespace string = "listener-util"
+
 type consumer struct{}
 
 func (c consumer) OnMessage(ctx context.Context, m listener.MessageContent) {
 	fmt.Printf("Message body: %s\n", *m.Body)
 }
 
-func (c consumer) OnError(ctx context.Context, err error) {
-	fmt.Println(err.Error())
-}
-
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	topicArn := flag.String("t", "", "The ARN of the topic to listen to, cannot be set along with parameter path")
 	parameterPath := flag.String("p", "", "The path of the SSM parameter to get the topic ARN from, cannot be set along with topic ARN")
@@ -70,52 +68,67 @@ func main() {
 		)
 	}
 
-	listenerCfg := listener.ListenerConfiguration{
-		ParameterPath:   *parameterPath,
-		PollingInterval: time.Duration(*pollingInterval) * time.Millisecond,
-		QueueName:       *queueName,
-		TopicArn:        *topicArn,
-		Verbose:         *verbose,
+	if *parameterPath != "" {
+		paramTopicArn, err := getParameter(
+			ctx,
+			ssm.NewFromConfig(cfg),
+			*parameterPath,
+		)
+
+		if err != nil {
+			log.Fatalf(
+				"Error reading parameter from path %s: %s",
+				*parameterPath,
+				err.Error(),
+			)
+		}
+
+		*topicArn = paramTopicArn
 	}
+
+	topicListener := listener.New(
+		*topicArn,
+		sns.NewFromConfig(cfg),
+		sqs.NewFromConfig(cfg),
+		listener.WithQueueName(*queueName),
+		listener.WithPollingInterval(time.Duration(*pollingInterval)*time.Millisecond),
+		listener.WithVerbose(*verbose),
+	)
+
+	err = topicListener.Setup(ctx)
+
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
+	errCh := make(chan error, 1)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
 
-	errCh := make(chan error)
+	listenCtx, cancel := context.WithCancel(ctx)
 
 	go func() {
-		listener.ListenToTopic(
-			ctx,
-			sqs.NewFromConfig(cfg),
-			sns.NewFromConfig(cfg),
-			ssm.NewFromConfig(cfg),
-			consumer{},
-			listenerCfg,
-			errCh,
-		)
+		errCh <- topicListener.Listen(listenCtx, consumer{})
 	}()
 
 	select {
 	case err := <-errCh:
-		for errs := range errCh {
-			err = errors.Join(err, errs)
-		}
-
-		log.Fatalf("Runtime error: %s", err.Error())
+		log.Printf("Runtime error: %s", err.Error())
 	case <-sigCh:
 		log.Print("Received interrupt instruction, cancelling context")
 
 		cancel()
-		err := <-errCh
-
-		for errs := range errCh {
-			err = errors.Join(err, errs)
-		}
+		err = <-errCh
 
 		if err != nil {
-			log.Fatalf("Error during teardown: %s", err.Error())
+			log.Printf("Error while cancelling context: %s", err.Error())
 		}
+	}
 
-		log.Print("Teardown complete")
+	err = topicListener.Teardown(ctx)
+
+	if err != nil {
+		log.Fatalf(err.Error())
 	}
 }
