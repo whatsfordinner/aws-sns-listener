@@ -34,6 +34,9 @@ AWS-SNS-Listener uses v2 of the AWS SDK for interacting with the SNS, SQS and SS
 The default credential provider is used and it does not accept named profiles.
 See: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
 
+Messages are written to stdout while logs are written to stderr.
+This allows message content to be piped or redirected without pollution by logs.
+
 Only one message at a time is received from the queue so high volume topics may result in a very full queue.
 This utility is not meant for processing high volumes of messages but to help troubleshoot SNS without fussing with email or SMS.
 */
