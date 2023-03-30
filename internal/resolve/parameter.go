@@ -1,4 +1,4 @@
-package main
+package resolve
 
 import (
 	"context"
@@ -13,13 +13,16 @@ import (
 
 // SSMAPI is a shim over v2 of the AWS SDK's ssm client. The ssm client provided by
 // github.com/aws/aws-sdk-go-v2/service/ssm automatically satisfies this.
+
 type SSMAPI interface {
 	GetParameter(ctx context.Context,
 		params *ssm.GetParameterInput,
 		optFns ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
 }
 
-func getParameter(ctx context.Context, client SSMAPI, parameterPath string) (string, error) {
+// GetParameter uses the provided Systems Manager client to resolve the provided parameter path.
+// Works only with String and SecureString parameters.
+func GetParameter(ctx context.Context, client SSMAPI, parameterPath string) (string, error) {
 	ctx, span := otel.Tracer(name).Start(ctx, "getParameter")
 	defer span.End()
 

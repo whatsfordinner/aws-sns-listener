@@ -48,4 +48,7 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 
-replace github.com/whatsfordinner/aws-sns-listener/pkg/listener => ./pkg/listener
+replace (
+	github.com/whatsfordinner/aws-sns-listener/pkg/listener => ./pkg/listener
+	github.com/whatsfordinner/aws-sns-listener/internal/resolve => ./internal/resolve
+)

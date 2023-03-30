@@ -1,3 +1,42 @@
+/*
+AWS-SNS-Listener listens to SNS topics.
+It prints the body of any messages published to an SNS topic to stdout.
+It accomplishes this by creating an SQS queue, subscribing it to the topic and then periodically receiving messages.
+
+Usage:
+
+	aws-sns-listener [flags]
+
+The flags are:
+
+	-t
+		The ARN of the SNS topic to subscribe to.
+		Mutually exclusive with -p
+	-p
+		The Systems Manager Parameter Store parameter to use to resolve the topic ARN.
+		Mutually exclusive with -t
+	-q
+		The desired name for the SQS queue.
+		The queue name does not need to include ".fifo" for FIFO topics.
+		If omitted the queue name wil be a v4 UUID prefixed with "sns-listener-".
+	-p
+		The interval between messages to receive from the queue in miliseconds.
+		If omitted the value will be 1 second.
+	-v
+		Enable logging from the listener package used by this utility.
+	-o
+		Enable the OpenTelemetry gRPC exporter.
+		Uses insecure transport.
+		Destination can be controlled with standard environment variables.
+		See: https://opentelemetry.io/docs/concepts/sdk-configuration/otlp-exporter-configuration/
+
+AWS-SNS-Listener uses v2 of the AWS SDK for interacting with the SNS, SQS and SSM APIs.
+The default credential provider is used and it does not accept named profiles.
+See: https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials
+
+Only one message at a time is received from the queue so high volume topics may result in a very full queue.
+This utility is not meant for processing high volumes of messages but to help troubleshoot SNS without fussing with email or SMS.
+*/
 package main
 
 import (
@@ -13,17 +52,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/whatsfordinner/aws-sns-listener/internal/resolve"
 	"github.com/whatsfordinner/aws-sns-listener/pkg/listener"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 )
 
-const name string = "github.com/whatsfordinner/aws-sns-listener"
-const traceNamespace string = "listener-util"
-
 type consumer struct{}
 
 func (c consumer) OnMessage(ctx context.Context, m listener.MessageContent) {
-	fmt.Printf("Message body: %s\n", *m.Body)
+	fmt.Println(*m.Body)
 }
 
 func main() {
@@ -69,7 +106,7 @@ func main() {
 	}
 
 	if *parameterPath != "" {
-		paramTopicArn, err := getParameter(
+		paramTopicArn, err := resolve.GetParameter(
 			ctx,
 			ssm.NewFromConfig(cfg),
 			*parameterPath,

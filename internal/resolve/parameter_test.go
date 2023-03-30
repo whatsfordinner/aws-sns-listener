@@ -1,4 +1,4 @@
-package main
+package resolve
 
 import (
 	"context"
@@ -41,7 +41,7 @@ func TestGetParameter(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			param, err := getParameter(ctx, client, test.parameterPath)
+			param, err := GetParameter(ctx, client, test.parameterPath)
 
 			if err != nil && !test.shouldErr {
 				t.Fatalf(

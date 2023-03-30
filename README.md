@@ -35,28 +35,40 @@ Only one of `-t` or `-p` must be provided. All others are optional
 
 Example output:
 ```
-❯ aws-sns-listener -o -v -p /sns-listener/topic-arn
-2023/03/26 18:53:45 Initialising GRPC OTLP exporter...
-2023/03/26 18:53:45 Fetching topic ARN from SSM parameter at path /sns-listener/topic-arn...
-2023/03/26 18:53:46 Successfully fetched paramater value: arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener
-2023/03/26 18:53:46 Creating new queue...
-        Name: sns-listener-a9bc952e-642c-4ed8-90c5-26f637fb9dc9
-        Allowing messages from topic: arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener
-        FIFO: false
-2023/03/26 18:53:46 Queue created with URL https://sqs.us-east-1.amazonaws.com/123456789012/sns-listener-a9bc952e-642c-4ed8-90c5-26f637fb9dc9
-2023/03/26 18:53:46 Creating a new SNS subscription...
-        SNS topic ARN: arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener
-        SQS queue ARN: arn:aws:sqs:us-east-1:123456789012:sns-listener-a9bc952e-642c-4ed8-90c5-26f637fb9dc9
-2023/03/26 18:53:46 Subscription created with ARN arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener:72181f9e-6d06-4a1c-95d8-b65c72dce84f
-2023/03/26 18:53:46 Starting to listen to queue. Fetching messages every 1s...
-^C2023/03/26 18:53:50 Received interrupt instruction, cancelling context
-2023/03/26 18:53:50 Context cancelled, no longer listening to queue
-2023/03/26 18:53:50 Removing subscription with ARN arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener:72181f9e-6d06-4a1c-95d8-b65c72dce84f...
-2023/03/26 18:53:50 Subscription removed
-2023/03/26 18:53:50 Deleting queue with URL https://sqs.us-east-1.amazonaws.com/123456789012/sns-listener-a9bc952e-642c-4ed8-90c5-26f637fb9dc9...
-2023/03/26 18:53:50 Deleted queue
-2023/03/26 18:53:50 Teardown complete
+❯ aws-sns-listener -v -p /sns-listener/topic-arn
+2023/03/30 21:49:37 Fetching topic ARN from SSM parameter at path /sns-listener/topic-arn...
+2023/03/30 21:49:38 Successfully fetched paramater value: arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener
+2023/03/30 21:49:38 Provided polling interval invalid: 0s. Defaulting to 1 second
+2023/03/30 21:49:38 Creating new queue...
+	Name: sns-listener-2ee83613-3e69-497e-8378-3ef7b9ba50a8
+	Allowing messages from topic: arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener
+	FIFO: false
+2023/03/30 21:49:38 Queue created with URL https://sqs.us-east-1.amazonaws.com/123456789012/sns-listener-2ee83613-3e69-497e-8378-3ef7b9ba50a8
+2023/03/30 21:49:38 Creating a new SNS subscription...
+	SNS topic ARN: arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener
+	SQS queue ARN: arn:aws:sqs:us-east-1:123456789012:sns-listener-2ee83613-3e69-497e-8378-3ef7b9ba50a8
+2023/03/30 21:49:38 Subscription created with ARN arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener:a051f49b-75b3-4a77-91b2-0cf1c64d9bfb
+2023/03/30 21:49:38 Starting to listen to queue. Fetching messages every 1s...
+{
+  "Type" : "Notification",
+  "MessageId" : "834b4a6e-7412-5a71-ba02-16f11fbcd2bc",
+  "TopicArn" : "arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener",
+  "Message" : "Hello from SNS!",
+  "Timestamp" : "2023-03-30T10:50:22.443Z",
+  "SignatureVersion" : "1",
+  "Signature" : "uPYnR89ZJHHx5VqNOtZ1+vXz2B1gVPoNAJAyDPG4REFmnWKMTf2jUkg/oGLRVtRotAJYDdJ+xlV7tg0nshiSQ3bTj6ryNbrSrmSs1pSTKRT99UAw0RlEhzWQrvhHB1xhTJ15x21gMsuzm5wgtP3BK1qBluV0KoUzpa8H8Uk9jWElycArQyhJS8MKV57EzyFY6AW+0GHsO7PTkhB8K+aM9GtmW52yqgMYXds8vPsh83b4REVGiMlS6s/XPa+3UcKsEqNRDxi/JQ3rwosFwsZgITaXD9R3UoEETuE0jxFtphsXn6mDOVJc6oSnODEbHu0/PdZCGn2pQqkDcUZIuroZsQ==",
+  "SigningCertURL" : "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-56e67fcb41f6fec09b0196692625d385.pem",
+  "UnsubscribeURL" : "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:ap-southeast-2:123456789012:aws-sns-topic-listener:a051f49b-75b3-4a77-91b2-0cf1c64d9bfb"
+}
+^C2023/03/30 21:50:35 Received interrupt instruction, cancelling context
+2023/03/30 21:50:35 Context cancelled, no longer listening to queue
+2023/03/30 21:50:35 Removing subscription with ARN arn:aws:sns:us-east-1:123456789012:aws-sns-topic-listener:a051f49b-75b3-4a77-91b2-0cf1c64d9bfb...
+2023/03/30 21:50:35 Subscription removed
+2023/03/30 21:50:35 Deleting queue with URL https://sqs.us-east-1.amazonaws.com/123456789012/sns-listener-2ee83613-3e69-497e-8378-3ef7b9ba50a8...
+2023/03/30 21:50:35 Deleted queue
 ```
+
+The utility will make the best possible effort to clean up any infrastructure in the event of failure. However, it is possible you might wind up with a queue and a subscription lying around in your AWS account that you don't want.
 
 ## Building
 
