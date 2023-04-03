@@ -2,12 +2,14 @@ package listener
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -164,6 +166,17 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 			)
 
 			if err != nil {
+				var cancelErr *smithy.CanceledError
+
+				if errors.As(err, &cancelErr) {
+					logger.Print("Leaving receive loop early due to cancelled context")
+
+					span.AddEvent("Leaving receive loop early due to cancelled context")
+					span.SetStatus(codes.Ok, "")
+
+					return nil
+				}
+
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				return err
@@ -189,6 +202,17 @@ func listenToQueue(ctx context.Context, client SQSAPI, queueUrl string, consumer
 				)
 
 				if err != nil {
+					var cancelErr *smithy.CanceledError
+
+					if errors.As(err, &cancelErr) {
+						logger.Print("Leaving receive loop early due to cancelled context")
+
+						span.AddEvent("Leaving receive loop early due to cancelled context")
+						span.SetStatus(codes.Ok, "")
+
+						return nil
+					}
+
 					msgSpan.RecordError(err)
 					msgSpan.SetStatus(codes.Error, err.Error())
 					msgSpan.End()
